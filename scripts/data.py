@@ -16,7 +16,7 @@ class DynamicsDataset(Dataset):
         raw_data = self.load_data(data_path)
         self.X, self.Y = self.load_input_and_output(raw_data, features)
         self.batch_size = batch_size
-        
+        self.num_steps = np.ceil(self.X.shape[1] / self.batch_size)
 
         assert self.X.shape[1] == self.Y.shape[1]
 

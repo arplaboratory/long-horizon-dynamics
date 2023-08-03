@@ -1,19 +1,16 @@
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import matplotlib.pyplot as plt
+from torch.utils.data import DataLoader
 
 from utils import check_folder_paths, plot_data
 from config import parse_args
 from data import DynamicsDataset
-from models.mlp import MLP
+import pytorch_lightning
+from lighting import DynamicsLearning
+
 
 import sys
 import time 
 import os
-from tqdm import tqdm
+
 
 if __name__ == "__main__":
 
@@ -49,149 +46,18 @@ if __name__ == "__main__":
         plot_data(train_dataset.X, features = features, 
                                    save_path = experiment_path + "plots")
     print('Loading model ...')
-    # Initialize the model, loss function, and optimizer
-    model = MLP(input_size=train_dataset.X.shape[0], 
-                output_size=train_dataset.Y.shape[0],
-                num_layers=[512, 512, 256, 128, 64], 
-                dropout=args.dropout).to(args.device)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
-    train_loss_list = []
-    valid_loss_list = []
-
-    print('Start training ...\n')
-    try:
-        best_loss = 1e8
-        for epoch in range(1, args.epochs + 1):
-            train_loss_sum = 0.0
-            valid_loss_sum = 0.0
-
-            batch = tqdm(train_dataloader, total=len(train_dataloader), desc="Train - Epoch {:2d} ".format(epoch))
-            model.train()
-            for i, (x, y) in enumerate(batch):
-
-                for p in model.parameters():
-                    p.grad = None
-                
-                x = x.to(args.device).float()
-                y = y.to(args.device).float()
-
-                y_pred = model(x)
-                loss = criterion(y_pred, y)
-                
-                loss.backward()
-                optimizer.step()
-                train_loss_sum += loss.item() 
-                batch.set_postfix(loss=train_loss_sum / (i+1))
-            
-            # validate model
-            if epoch % args.val_freq == 0:
-                batch = tqdm(valid_dataloader, total=len(valid_dataloader), desc="Valid - Epoch {:2d} ".format(epoch))
-                model.eval()
-                for i, (x, y) in enumerate(batch):
-                    x = x.to(args.device).float()
-                    y = y.to(args.device).float()
-
-                    with torch.no_grad():
-                        y_pred = model(x)
-                        loss = criterion(y_pred, y)
-                        valid_loss_sum += loss.item()
-                        batch.set_postfix(loss=valid_loss_sum / (i+1))
-
-                if valid_loss_sum < best_loss:
-                    best_loss = valid_loss_sum
-                    torch.save(model.state_dict(), experiment_path + "checkpoints/model_epoch_" + str(epoch) + ".pth")
-                    print('Saving model ...')
-      
-            train_loss_list.append(train_loss_sum / len(train_dataloader))
-            valid_loss_list.append(valid_loss_sum / len(valid_dataloader))
-    except KeyboardInterrupt:
-        print("-" * 89)
-        print("Exiting from training early ...")
-        print("-" * 89)
-            
-    # plotting loss curves
-    train_loss_np = np.array(train_loss_list)
-    valid_loss_np = np.array(valid_loss_list)
-
-    epochs = list(range(1, len(train_loss_list) + 1))
-
-    # plot loss curves
-    plt.figure()
-    plt.plot(epochs, train_loss_np, label="Train Loss")
-    plt.plot(epochs, valid_loss_np, label="Valid Loss")
-    plt.legend()
-    plt.grid(True)
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.savefig(experiment_path + "plots/loss.png")
+    # Initialize the model
+    model = DynamicsLearning(args, resources_path, experiment_path,
+                                input_size=train_dataset.X.shape[0],
+                                output_size=train_dataset.Y.shape[0],
+                                train_steps=train_dataset.num_steps,
+                                valid_steps=valid_dataset.num_steps)
+    trainer = pytorch_lightning.Trainer(accelerator="gpu", devices=args.num_devices, 
+                                        max_epochs=args.epochs,val_check_interval=args.val_freq, 
+                                        default_root_dir=experiment_path)
+    trainer.fit(model, train_dataloader, valid_dataloader)  
 
 
-            
-
-
-
-    '''
     
-    for epoch in range(args.epochs):
-        train_loss_per_epoch = 0.0
-        test_loss_per_epoch = 0.0
-
-        model.train()
-        for i, (x, y) in enumerate(train_dataloader):
-            x = x.to(args.device).float()
-            y = y.to(args.device).float()
-            
-            y_pred = model(x)
-            loss = criterion(y_pred, y)
-            loss.backward()
-            optimizer.step()
-            train_loss_per_epoch += loss.item()
-        
-        print('--------------------------------------------------------------------------------------')
-        train_loss_list.append(np.mean(train_loss_per_epoch))
-
-        # train_loss_list.append(train_loss_per_epoch * args.batch_size/len(train_dataset))
-        print(f"Epoch {epoch+1}/{args.epochs}, Train Loss: {np.mean(train_loss_per_epoch)}")
-        
-        # validate model
-        model.eval()
-        for i, (x, y) in enumerate(test_dataloader):
-            x = x.to(args.device).float()
-            y = y.to(args.device).float()
-
-            with torch.no_grad():
-                y_pred = model(x)
-                loss = criterion(y_pred, y)
-                test_loss_per_epoch += loss.item()
-
-        print(f"Epoch {epoch+1}/{args.epochs}, Test Loss: {np.mean(test_loss_per_epoch)}")
-        print('--------------------------------------------------------------------------------------')
-        test_loss_list.append(np.mean(test_loss_per_epoch))
-
-        if epoch % args.save_freq == 0:
-            torch.save(model.state_dict(), experiment_path + "checkpoints/model_epoch_" + str(epoch) + ".pth")
-
-    # converting loss values to log scale
-    train_loss_np = np.array(train_loss_list)
-    test_loss_np = np.array(test_loss_list)
-
-    epochs = list(range(1, len(train_loss_list) + 1))
-
-    # plot loss curves
-    plt.figure()
-    plt.plot(epochs, train_loss_np, label="Train Loss")
-    plt.plot(epochs, test_loss_np, label="Test Loss")
-    plt.legend()
-    plt.grid(True)
-    plt.xlabel("Epochs")
-    plt.ylabel("Logarihtmic Scale Loss")
-    plt.savefig(experiment_path + "plots/loss.png")
-    '''
     
-
-
-
-
-
