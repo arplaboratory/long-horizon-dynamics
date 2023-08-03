@@ -46,6 +46,14 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         loss = self.criterion(y_hat, y)
         self.log('train_loss', loss, prog_bar=True)
         return loss
+    def test_step(self, test_batch, batch_idx):
+        x, y = test_batch
+        x = x.float()
+        y = y.float()
+        y_hat = self.model(x)
+        loss = self.criterion(y_hat, y)
+        self.log('test_loss', loss, prog_bar=True)
+        return y_hat
     
     def validation_step(self, valid_batch, batch_idx):
         x, y = valid_batch

@@ -64,9 +64,6 @@ def load_input_and_output(raw_data, features, normalize=False):
     
     data_np = np.concatenate(data_list, axis=1)
 
-    # # Remove wind from data
-    # data_np = np.delete(data_np, [0, 1, 2, 11, 12], axis=0)
-
     # Normalization of data
     if normalize:
         data_np = (data_np - data_np.min(axis=1).reshape(-1, 1)) / (data_np.max(axis=1).reshape(-1, 1) - data_np.min(axis=1).reshape(-1, 1))
@@ -76,11 +73,9 @@ def load_input_and_output(raw_data, features, normalize=False):
 
     for i in range(data_np.shape[1] - 1):
         x[:, i] = data_np[:, i] 
-        y[:8, i] = data_np[:8, i+1]
+        y[:, i] = data_np[:9, i+1]
     
-    # # Remove wind from data
-    # x = np.delete(x, [11, 12], axis=0)
-    # y = np.delete(y, [11, 12, 13, 14, 15, 16], axis=0)
+  
 
     return x, y
 
@@ -117,7 +112,7 @@ if __name__=="__main__":
 
     raw_data = load_data('/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/data/train')
     x, y = load_input_and_output(raw_data, features)
-    print(x.shape, y.shape)
+    
     # print(x.shape, y.shape)
     # plot_data(x, features, '/home/prat/arpl/TII/ws_dynamics/data/train')
 

@@ -16,7 +16,7 @@ class DynamicsDataset(Dataset):
         raw_data = self.load_data(data_path)
         self.X, self.Y = self.load_input_and_output(raw_data, features)
         self.batch_size = batch_size
-        self.num_steps = np.ceil(self.X.shape[1] / self.batch_size)
+        self.num_steps = np.ceil(self.X.shape[1] / self.batch_size).astype(int)
 
         assert self.X.shape[1] == self.Y.shape[1]
 
@@ -56,10 +56,7 @@ class DynamicsDataset(Dataset):
             data_list.append(X)
         
         data_np = np.concatenate(data_list, axis=1)
-
-        # # Remove wind from data
-        # data_np = np.delete(data_np, [0, 1, 2, 11, 12], axis=0)
-
+        
         # Normalization of data
         if self.normalize:
             data_np = (data_np - data_np.mean(axis=1).reshape(-1, 1)) / (data_np.std(axis=1).reshape(-1, 1))
@@ -71,7 +68,7 @@ class DynamicsDataset(Dataset):
 
         for i in range(data_np.shape[1] - 1):
             x[:, i] = data_np[:, i] 
-            y[:8, i] = data_np[:8, i+1]
+            y[:, i] = data_np[:9, i+1]
 
         return x, y
     
