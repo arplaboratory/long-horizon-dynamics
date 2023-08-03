@@ -5,15 +5,19 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Arguments for dynamics learning')
 
     # training
-    parser.add_argument('-r', '--run_id',          type=int,      default=0)
+    parser.add_argument('-r', '--run_id',          type=int,      default=1)
     parser.add_argument('-d', '--gpu_id',          type=int,      default=0)
-    parser.add_argument('-e', '--epochs',          type=int,      default=5000)
+    parser.add_argument('-e', '--epochs',          type=int,      default=20000)
     parser.add_argument('-b', '--batch_size',      type=int,      default=16)
-    parser.add_argument('--dropout',               type=float,    default=0.5)
-    parser.add_argument('-l', '--learning_rate',   type=float,    default=0.001)
+    parser.add_argument('--dropout',               type=float,    default=0.2)
+    parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=True)
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('-p', '--plot',            type=bool,     default=True)
+    parser.add_argument('--save_freq',             type=int,      default=50)
+    parser.add_argument('--normalize',             type=bool,     default=False)
+    parser.add_argument('--val_freq',              type=int,      default=1)
+    
 
     return parser.parse_args()
 
