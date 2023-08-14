@@ -53,16 +53,13 @@ if __name__ == "__main__":
                 'p', 'q', 'r', 
                 'delta_e', 'delta_a', 'delta_r', 'delta_t']
 
-    # create the dataset
-    train_dataset = DynamicsDataset(data_path + "train/", 1, features, args.normalize)
-    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=args.shuffle, num_workers=args.num_workers)
-
-    test_dataset = DynamicsDataset(data_path + "valid/", 1, features, args.normalize)
+    # create the dataseT
+    test_dataset = DynamicsDataset(data_path + "test/", 1, features, args.normalize)
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=args.shuffle, num_workers=args.num_workers)
     
     # Initialize the model
-    model = MLP(input_size=train_dataset.X.shape[0], 
-                output_size=train_dataset.Y.shape[0],
+    model = MLP(input_size=test_dataset.X.shape[0], 
+                output_size=test_dataset.Y.shape[0],
                 num_layers=[512, 512, 256, 128, 64], 
                 dropout=args.dropout).to(args.device)
     
@@ -72,10 +69,26 @@ if __name__ == "__main__":
     batch = tqdm(test_dataloader, total=len(test_dataloader), desc="Testing")
 
     model.eval()
-    Y = np.zeros((train_dataset.Y.shape[1], train_dataset.Y.shape[0]))
-    Y_hat = np.zeros((train_dataset.Y.shape[1], train_dataset.Y.shape[0]))
+    Y = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
+    Y_hat = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
 
-   
+    # Inference speed computation 
+    with torch.no_grad():
+        test_x, test_y = next(iter(test_dataloader))
+        print(test_x.shape, test_y.shape)
+        test_x = test_x.to(args.device).float()
+        test_y = test_y.to(args.device).float()
+        frequency_hist = []
+        for k in range(11):
+            starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+            starter.record()
+            y_pred = model(test_x)
+            ender.record()
+            torch.cuda.synchronize()
+            if k:
+                frequency_hist.append(1. / (starter.elapsed_time(ender) / 1000))
+        print("Inference speed (Hz): ", np.mean(frequency_hist))
+
     with torch.no_grad():
         for i, (x, y) in enumerate(batch):
             x = x.to(args.device).float()
@@ -90,21 +103,25 @@ if __name__ == "__main__":
     features = ['u (m/s)', 'v (m/s)', 'w (m/s)',
                 'phi (radians)', 'theta (radians)', 'psi (radians)', 
                 'p (radians/sec)', 'q (radians/sec)', 'r (radians/sec)']
-     # plot the results in a pdf
-    with PdfPages(experiment_path + "plots/predictions.pdf") as pdf:
-        for i, feature in enumerate(features):
-            plt.figure()
-            plt.plot(Y[:, i], label="Ground Truth", color=colors[3])
-            plt.plot(Y_hat[:, i], label="Predictions", color=colors[2])
-            plt.xlabel("Time (s)")
-            plt.ylabel(feature)
-            plt.legend()
-            pdf.savefig()
-            plt.close()
-    
    
+    Y = Y[::50, :]
+    Y_hat = Y_hat[::50, :]
     
-    
+    # plot the prediction and ground truth per second in a pdf
+    # with PdfPages(experiment_path + "plots/predictions.pdf") as pdf:
+    #     for i in range(9):
+    #         plt.figure(i)
+    #         plt.plot(Y[:, i], label="Ground Truth", color=colors[2])
+    #         plt.plot(Y_hat[:, i], label="Prediction", color=colors[3])
+    #         plt.grid()
+    #         plt.xlabel('Time')
+    #         plt.ylabel(features[i])
+    #         plt.legend(loc ="upper right")
+    #         pdf.savefig()
+    #         plt.close()
+
+    # plot the prediction and ground truth per second in in a single plot
+    with PdfPages(experiment_path + "plots/predictions.pdf") as p
 
 
 

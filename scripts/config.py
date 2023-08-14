@@ -9,7 +9,7 @@ def parse_args():
     parser.add_argument('-d', '--gpu_id',          type=int,      default=0)
     parser.add_argument('--num_devices',           type=int,      default=1)
     parser.add_argument('-e', '--epochs',          type=int,      default=20000)
-    parser.add_argument('-b', '--batch_size',      type=int,      default=16)
+    parser.add_argument('-b', '--batch_size',      type=int,      default=4096)
     parser.add_argument('--dropout',               type=float,    default=0.2)
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=True)
