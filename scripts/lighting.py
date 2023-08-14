@@ -3,7 +3,6 @@ import os
 import time
 import warnings
 import torch
-from torch.optim import Adam
 import pytorch_lightning
 
 from config import parse_args
@@ -35,8 +34,21 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         return self.model(x)
     
     def configure_optimizers(self):
-        optimizer = Adam(self.parameters(), lr=self.args.learning_rate)
-        return optimizer
+        optimizer = torch.optim.Adam(
+            params=self.parameters(), 
+            lr=self.args.learning_rate
+        )
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            patience=1,
+            verbose=True
+        )
+
+        return {
+           'optimizer': optimizer,
+           'lr_scheduler': scheduler, # Changed scheduler to lr_scheduler
+           'monitor': 'valid_loss'
+       }
     
     def training_step(self, train_batch, batch_idx):
         x, y = train_batch
