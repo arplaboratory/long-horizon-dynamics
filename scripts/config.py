@@ -9,8 +9,8 @@ def parse_args():
     parser.add_argument('-d', '--gpu_id',          type=int,      default=0)
     parser.add_argument('--num_devices',           type=int,      default=1)
     parser.add_argument('-e', '--epochs',          type=int,      default=50000)
-    parser.add_argument('-b', '--batch_size',      type=int,      default=65536)
-    parser.add_argument('--dropout',               type=float,    default=0)
+    parser.add_argument('-b', '--batch_size',      type=int,      default=16384)
+    parser.add_argument('--dropout',               type=float,    default=0.2)
     parser.add_argument('--weight_decay',          type=float,    default=0.0001)
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.005)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=True)
@@ -19,8 +19,13 @@ def parse_args():
     parser.add_argument('--save_freq',             type=int,      default=50)
     parser.add_argument('--normalize',             type=bool,     default=True)
     parser.add_argument('--val_freq',              type=int,      default=1)
-    parser.add_argument('--std_percentage',        type=float,    default=0.4)
-    
+    parser.add_argument('--std_percentage',        type=float,    default=0.2)
+
+
+    # LSTM Model
+    parser.add_argument('--num_layers',            type=int,      default=3)
+    parser.add_argument('--hidden_size',           type=int,      default=64)
+    parser.add_argument('--history_length',        type=int,      default=8)
 
     return parser.parse_args()
 

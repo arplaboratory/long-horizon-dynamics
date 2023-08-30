@@ -7,6 +7,7 @@ import pytorch_lightning
 
 from config import parse_args
 from models.mlp import MLP
+from models.lstm import LSTM
 
 warnings.filterwarnings("ignore")
 
@@ -22,10 +23,18 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.train_step = train_steps
         self.valid_step = valid_steps
         self.pred_step = pred_steps
-        self.model = MLP(input_size=input_size, 
-                output_size=output_size,
-                num_layers=num_layers, 
-                dropout=args.dropout)
+        # self.model = MLP(input_size=input_size, 
+        #         output_size=output_size,
+        #         num_layers=num_layers, 
+        #         dropout=args.dropout)
+
+        self.model = LSTM(input_size=input_size,
+                          hidden_size=args.hidden_size,
+                          num_layers=args.num_layers,
+                          output_size=output_size,
+                          history_length=args.history_length,
+                          dropout=args.dropout)
+        
         self.criterion = torch.nn.MSELoss()
         self.best_valid_loss = 1e8
       
@@ -55,9 +64,9 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
            'monitor': 'valid_loss'
        }
 
-        return {
-            'optimizer': optimizer,
-        }
+        # return {
+        #     'optimizer': optimizer,
+        # }
     
     def training_step(self, train_batch, batch_idx):
         x, y = train_batch

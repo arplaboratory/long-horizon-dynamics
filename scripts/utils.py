@@ -19,7 +19,7 @@ import os
 import csv
 import numpy as np
 
-def load_data(folder_path, input_features, output_features):
+def load_data(data_path, input_features, output_features, history_length=4):
     """
     Read data from multiple CSV files in a folder and prepare concatenated input-output pairs.
 
@@ -36,38 +36,35 @@ def load_data(folder_path, input_features, output_features):
     all_X = []
     all_Y = []
 
-    for filename in os.listdir(folder_path):
+    for filename in os.listdir(data_path):
         if filename.endswith(".csv"):
-            csv_file_path = os.path.join(folder_path, filename)
+            csv_file_path = os.path.join(data_path, filename)
             
             with open(csv_file_path, 'r') as csvfile:
                 reader = csv.DictReader(csvfile)
                 data = [row for row in reader]
 
-            num_samples = len(data) - 1
+            num_samples = len(data) - history_length
             num_input_features = len(input_features)
             num_output_features = len(output_features)
 
-            X = np.zeros((num_samples, num_input_features))
+            X = np.zeros((num_samples, history_length, num_input_features))
             Y = np.zeros((num_samples, num_output_features))
 
             for i in range(num_samples):
-                sample = data[i]
-                next_sample = data[i + 1]
-
-                x = [float(sample[feature]) for feature in input_features]
-                y = [float(next_sample[feature]) for feature in output_features]
-
-                X[i, :] = x
-                Y[i, :] = y
-
+                for j in range(history_length):
+                    for k in range(num_input_features):
+                        X[i, j, k] = float(data[i + j][input_features[k]])
+                for k in range(num_output_features):
+                    Y[i, k] = float(data[i + history_length][output_features[k]])
+            
             all_X.append(X)
             all_Y.append(Y)
-
+    
     X = np.concatenate(all_X, axis=0)
     Y = np.concatenate(all_Y, axis=0)
 
-    return X.T, Y.T
+    return X, Y
 
 
 def plot_data(data, features, save_path):
@@ -98,7 +95,7 @@ def check_folder_paths(folder_paths):
 if __name__=="__main__":
 
 
-    x, y = load_data('/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/data/test', INPUT_FEATURES, OUTPUT_FEATURES)
+    x, y = load_data('/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/data/test', INPUT_FEATURES, OUTPUT_FEATURES, history_length=4)
     print(x.shape, y.shape)
 
     print(x[:, 0])

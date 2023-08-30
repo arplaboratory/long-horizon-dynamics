@@ -43,15 +43,17 @@ if __name__ == "__main__":
 
     # create the dataset
     train_dataset = DynamicsDataset(data_path + "train/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
-                                    normalize=args.normalize, std_percentage=args.std_percentage)
+                                    history_length=args.history_length, normalize=args.normalize, 
+                                    std_percentage=args.std_percentage)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
     valid_dataset = DynamicsDataset(data_path + "valid/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
-                                    normalize=args.normalize, std_percentage=args.std_percentage, augmentations=False)
+                                    history_length=args.history_length, normalize=args.normalize, std_percentage=args.std_percentage, 
+                                    augmentations=False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
     # print number of datapoints
-    print("Number of training datapoints:", train_dataset.X.shape[1])
+    print("Number of training datapoints:", train_dataset.X.shape[0])
 
     if args.plot == True:
         plot_data(train_dataset.X, features = INPUT_FEATURES, 
@@ -60,11 +62,11 @@ if __name__ == "__main__":
 
     # Initialize the model
     model = DynamicsLearning(args, resources_path, experiment_path,
-                                input_size=train_dataset.X.shape[0],
-                                output_size=train_dataset.Y.shape[0],
-                                num_layers=[512, 256, 256, 128],
-                                train_steps=train_dataset.num_steps,
-                                valid_steps=valid_dataset.num_steps)
+                             input_size=train_dataset.X.shape[2],
+                             output_size=train_dataset.Y.shape[1],
+                             num_layers=[512, 256, 256, 128],
+                             train_steps=train_dataset.num_steps,
+                             valid_steps=valid_dataset.num_steps)
     trainer = pytorch_lightning.Trainer(accelerator="gpu", devices=args.num_devices, 
                                         max_epochs=args.epochs,val_check_interval=args.val_freq, 
                                         default_root_dir=experiment_path)
