@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore")
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
     def __init__(self, args, resources_path, experiment_path, 
-                 input_size, output_size, train_steps = None, 
+                 input_size, output_size, num_layers, train_steps = None, 
                  valid_steps = None, pred_steps = None):
         super().__init__()
         self.args = args
@@ -24,7 +24,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.pred_step = pred_steps
         self.model = MLP(input_size=input_size, 
                 output_size=output_size,
-                num_layers=[512, 512, 256, 128, 64], 
+                num_layers=num_layers, 
                 dropout=args.dropout)
         self.criterion = torch.nn.MSELoss()
         self.best_valid_loss = 1e8
@@ -36,12 +36,17 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             params=self.parameters(), 
-            lr=self.args.learning_rate
+            lr=self.args.learning_rate,
+            weight_decay=self.args.weight_decay
+            
         )
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            patience=1,
-            verbose=True
+                    optimizer=optimizer,
+                    mode='min',
+                    factor=0.5,
+                    patience=10,
+                    verbose=True
         )
 
         return {
@@ -49,11 +54,16 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
            'lr_scheduler': scheduler, # Changed scheduler to lr_scheduler
            'monitor': 'valid_loss'
        }
+
+        return {
+            'optimizer': optimizer,
+        }
     
     def training_step(self, train_batch, batch_idx):
         x, y = train_batch
         x = x.float()
         y = y.float()
+
         y_hat = self.model(x)
         loss = self.criterion(y_hat, y)
         self.log('train_loss', loss, prog_bar=True)

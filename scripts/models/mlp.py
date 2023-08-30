@@ -12,7 +12,7 @@ class MLP(nn.Module):
         self.dropout = dropout
 
         self.model = self.make()
-        # self.model.apply(self.init_normal)
+        self.model.apply(self.init_weights)
 
     def make(self):
         layers = nn.ModuleList()
@@ -35,8 +35,9 @@ class MLP(nn.Module):
     
     def forward(self, x):
         return self.model(x)
-    
-    def init_normal(self, m):
+
+    def init_weights(self, m):
         if type(m) == nn.Linear:
-            nn.init.uniform_(m.weight)
+            nn.init.xavier_uniform_(m.weight)
+            m.bias.data.fill_(0.01)
         

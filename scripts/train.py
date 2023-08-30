@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 
 from utils import check_folder_paths, plot_data
-from config import parse_args
+from config import parse_args, save_args
 from data import DynamicsDataset
 import pytorch_lightning
 from lighting import DynamicsLearning
@@ -25,10 +25,16 @@ if __name__ == "__main__":
 
     check_folder_paths([experiment_path + "checkpoints",
                         experiment_path + "plots"])
-    features = ['u', 'v', 'w',
-                'phi', 'theta', 'psi', 
-                'p', 'q', 'r', 
-                'delta_e', 'delta_a', 'delta_r', 'delta_t']
+    
+    # save arguments
+    save_args(args, experiment_path + "args.txt")
+
+    INPUT_FEATURES = ['u', 'v', 'w',
+                      'e0', 'e1', 'e2', 'e3',
+                      'p', 'q', 'r',
+                      'delta_e', 'delta_a', 'delta_r', 'delta_t']
+    OUTPUT_FEATURES = ['u', 'v', 'w',
+                       'p', 'q', 'r',]
     
     # device
     args.device = "cuda:0"
@@ -36,14 +42,19 @@ if __name__ == "__main__":
     print("Training model on cuda:" + str(args.gpu_id) + "\n")
 
     # create the dataset
-    train_dataset = DynamicsDataset(data_path + "train/", args.batch_size, features, args.normalize)
+    train_dataset = DynamicsDataset(data_path + "train/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
+                                    normalize=args.normalize, std_percentage=args.std_percentage)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
-    valid_dataset = DynamicsDataset(data_path + "valid/", args.batch_size, features, args.normalize)
+    valid_dataset = DynamicsDataset(data_path + "valid/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
+                                    normalize=args.normalize, std_percentage=args.std_percentage, augmentations=False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
+    # print number of datapoints
+    print("Number of training datapoints:", train_dataset.X.shape[1])
+
     if args.plot == True:
-        plot_data(train_dataset.X, features = features, 
+        plot_data(train_dataset.X, features = INPUT_FEATURES, 
                                    save_path = experiment_path + "plots")
     print('Loading model ...')
 
@@ -51,6 +62,7 @@ if __name__ == "__main__":
     model = DynamicsLearning(args, resources_path, experiment_path,
                                 input_size=train_dataset.X.shape[0],
                                 output_size=train_dataset.Y.shape[0],
+                                num_layers=[512, 256, 256, 128],
                                 train_steps=train_dataset.num_steps,
                                 valid_steps=valid_dataset.num_steps)
     trainer = pytorch_lightning.Trainer(accelerator="gpu", devices=args.num_devices, 
