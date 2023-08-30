@@ -3,22 +3,28 @@ import torch.nn as nn
 
 # 1-d convolutional neural network
 class CNNModel(nn.Module):
-    def __init__(self, input_size, num_filters, kernel_size, output_size, dropout):
+    def __init__(self, input_size, num_filters, kernel_size, output_size, history_length, dropout):
         super(CNNModel, self).__init__()
         self.input_size = input_size
         self.num_filters = num_filters
         self.kernel_size = kernel_size
         self.output_size = output_size
         self.dropout = dropout
+        self.history_length = history_length
         self.conv1d = self.make_conv1d()
         self.mlp = self.make_mlp()
         self.conv1d.apply(self.init_weights)
 
     def make_conv1d(self):
-        conv1d = nn.Conv1d(self.input_size, self.num_filters, 
+        conv1d_1 = nn.Conv1d(self.input_size, self.num_filters, 
                            self.kernel_size, 
                            padding=self.kernel_size // 2)
-        return conv1d
+        
+        # averge pooling
+        avg_pool = nn.AvgPool1d(kernel_size=self.history_length)
+        conv1d_2 = nn.Conv1d(self.num_filters, self.output_size, kernel_size=1)
+
+        return nn.Sequential(conv1d_1, avg_pool, conv1d_2)
     
     def make_mlp(self):
         mlp = nn.Sequential(
@@ -33,10 +39,8 @@ class CNNModel(nn.Module):
     
     def forward(self, x):
         x = x.permute(0, 2, 1)
-        out = self.conv1d(x)
-        out = out.permute(0, 2, 1)
-        out = torch.mean(out, dim=1)
-        out = self.mlp(out)
+        out = self.conv1d(x).squeeze(2)
+
         return out
     
     def init_weights(self, m):
@@ -49,7 +53,7 @@ class CNNModel(nn.Module):
 
 if __name__=='__main__':
 
-    model = CNNModel(14, 64, 3, 6, 0.2)
+    model = CNNModel(14, 64, 3, 6, 4, 0.2)
     x = torch.randn(64, 4, 14)
     out = model(x)
     print(out.size())

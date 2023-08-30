@@ -49,7 +49,6 @@ if __name__ == "__main__":
     # device
     args.device = "cuda:0"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
-    print("Training model on cuda:" + str(args.gpu_id))
 
     INPUT_FEATURES = ['u', 'v', 'w',
                       'e0', 'e1', 'e2', 'e3',
@@ -57,12 +56,7 @@ if __name__ == "__main__":
                       'delta_e', 'delta_a', 'delta_r', 'delta_t']
     OUTPUT_FEATURES = ['u', 'v', 'w',
                        'p', 'q', 'r',]
-    
-    # device
-    args.device = "cuda:0"
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
-    print("Training model on cuda:" + str(args.gpu_id) + "\n")
-
+ 
     # create the dataset
     test_dataset = DynamicsDataset(data_path + "test/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
                                     history_length=args.history_length, normalize=args.normalize, 
@@ -91,6 +85,7 @@ if __name__ == "__main__":
                     num_filters=args.num_filters,
                     kernel_size=args.kernel_size, 
                     output_size=len(OUTPUT_FEATURES),
+                    history_length=args.history_length,
                     dropout=args.dropout)
     elif args.model_type == "mlp":
         model = MLP(input_size=len(INPUT_FEATURES), 
@@ -137,8 +132,8 @@ if __name__ == "__main__":
     
     # Plotting on pdf file
     
-    # Y = Y[::50, :]
-    # Y_hat = Y_hat[::50, :]
+    Y = Y[::50, :]
+    Y_hat = Y_hat[::50, :]
 
     with PdfPages(experiment_path + "plots/test.pdf") as pdf:
         for i in range(len(OUTPUT_FEATURES)):

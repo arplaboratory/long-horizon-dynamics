@@ -42,7 +42,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                                   num_filters=args.num_filters,
                                   kernel_size=args.kernel_size,
                                   output_size=output_size,
-                                  
+                                  history_length=args.history_length,
                                   dropout=args.dropout)
 
         self.criterion = torch.nn.MSELoss()

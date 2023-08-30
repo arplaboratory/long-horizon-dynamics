@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--std_percentage',        type=float,    default=0.2)
     parser.add_argument('--model_type',            type=str,      default='cnn')
     parser.add_argument('--history_length',        type=int,      default=8)
-    parser.add_argument('--augmentation',          type=bool,     default=False)
+    parser.add_argument('--augmentation',          type=bool,     default=True)
 
     # LSTM Model
     parser.add_argument('--num_layers',            type=int,      default=3)
