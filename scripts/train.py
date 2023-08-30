@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # create the dataset
     train_dataset = DynamicsDataset(data_path + "train/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
                                     history_length=args.history_length, normalize=args.normalize, 
-                                    std_percentage=args.std_percentage)
+                                    std_percentage=args.std_percentage, augmentations=args.augmentation)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
     valid_dataset = DynamicsDataset(data_path + "valid/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 

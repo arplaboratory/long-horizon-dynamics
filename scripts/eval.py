@@ -22,6 +22,8 @@ from utils import check_folder_paths, plot_data
 from config import parse_args
 from data import DynamicsDataset
 from models.lstm import LSTM
+from models.cnn import CNNModel
+from models.mlp import MLP
 
 import sys
 import glob
@@ -64,7 +66,7 @@ if __name__ == "__main__":
     # create the dataset
     test_dataset = DynamicsDataset(data_path + "test/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
                                     history_length=args.history_length, normalize=args.normalize, 
-                                    std_percentage=args.std_percentage)
+                                    std_percentage=args.std_percentage, augmentations=False)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
    
@@ -75,9 +77,26 @@ if __name__ == "__main__":
     print('Loading model ...')
 
     # Initialize the model
-    model = LSTM(input_size=test_dataset.X.shape[2], hidden_size=args.hidden_size, num_layers=args.num_layers,
-                  output_size=test_dataset.Y.shape[1], 
-                  history_length=args.history_length,dropout=args.dropout) 
+    
+    if args.model_type == "lstm":
+
+        model = LSTM(input_size=len(INPUT_FEATURES), 
+                    hidden_size=args.hidden_size,
+                    num_layers=args.num_layers, 
+                    output_size=len(OUTPUT_FEATURES),
+                    history_length=args.history_length, 
+                    dropout=args.dropout)
+    elif args.model_type == "cnn":
+        model = CNNModel(input_size=len(INPUT_FEATURES), 
+                    num_filters=args.num_filters,
+                    kernel_size=args.kernel_size, 
+                    output_size=len(OUTPUT_FEATURES),
+                    dropout=args.dropout)
+    elif args.model_type == "mlp":
+        model = MLP(input_size=len(INPUT_FEATURES), 
+                    output_size=len(OUTPUT_FEATURES),
+                    num_layers=args.num_layers, 
+                    dropout=args.dropout)
     model.load_state_dict(torch.load(model_path))
     model.to(args.device)
     
@@ -118,8 +137,8 @@ if __name__ == "__main__":
     
     # Plotting on pdf file
     
-    Y = Y[::50, :]
-    Y_hat = Y_hat[::50, :]
+    # Y = Y[::50, :]
+    # Y_hat = Y_hat[::50, :]
 
     with PdfPages(experiment_path + "plots/test.pdf") as pdf:
         for i in range(len(OUTPUT_FEATURES)):

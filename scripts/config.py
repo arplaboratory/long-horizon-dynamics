@@ -20,12 +20,18 @@ def parse_args():
     parser.add_argument('--normalize',             type=bool,     default=True)
     parser.add_argument('--val_freq',              type=int,      default=1)
     parser.add_argument('--std_percentage',        type=float,    default=0.2)
-
+    parser.add_argument('--model_type',            type=str,      default='cnn')
+    parser.add_argument('--history_length',        type=int,      default=8)
+    parser.add_argument('--augmentation',          type=bool,     default=False)
 
     # LSTM Model
     parser.add_argument('--num_layers',            type=int,      default=3)
     parser.add_argument('--hidden_size',           type=int,      default=64)
-    parser.add_argument('--history_length',        type=int,      default=8)
+    
+
+    # CNN Model
+    parser.add_argument('--num_filters',           type=int,      default=128)
+    parser.add_argument('--kernel_size',           type=int,      default=3)
 
     return parser.parse_args()
 
