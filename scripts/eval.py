@@ -50,23 +50,45 @@ if __name__ == "__main__":
     args.device = "cuda:0"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
 
-    INPUT_FEATURES = ['u', 'v', 'w',
-                      'e0', 'e1', 'e2', 'e3',
-                      'p', 'q', 'r',
-                      'delta_e', 'delta_a', 'delta_r', 'delta_t']
-    OUTPUT_FEATURES = ['u', 'v', 'w',
-                       'p', 'q', 'r',]
+    # set input and output features based on attitude type from args
+    if args.attitude == "quaternion":
+        INPUT_FEATURES = ['u', 'v', 'w',
+                          'e0', 'e1', 'e2', 'e3',
+                          'p', 'q', 'r',
+                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+        OUTPUT_FEATURES = ['u', 'v', 'w',
+                           'e0', 'e1', 'e2', 'e3', 
+                           'p', 'q', 'r']
+    elif args.attitude == "rotation":
+        INPUT_FEATURES = ['u', 'v', 'w',
+                          'r11', 'r12', 'r13', 
+                          'r21', 'r22', 'r23',
+                          'r31', 'r32', 'r33',
+                          'p', 'q', 'r',
+                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+        OUTPUT_FEATURES = ['u', 'v', 'w',
+                           'r11', 'r21', 'r31', 
+                           'r12', 'r22', 'r32',
+                           'r13', 'r23', 'r33',
+                           'p', 'q', 'r']
+    elif args.attitude == "euler":
+        INPUT_FEATURES = ['u', 'v', 'w',
+                          'phi', 'theta', 'psi',
+                          'p', 'q', 'r',
+                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+        OUTPUT_FEATURES = ['u', 'v', 'w',
+                           'phi', 'theta', 'psi',
+                           'p', 'q', 'r']
  
     # create the dataset
-    test_dataset = DynamicsDataset(data_path + "test/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
-                                    history_length=args.history_length, normalize=args.normalize, 
-                                    std_percentage=args.std_percentage, augmentations=False)
+    test_dataset = DynamicsDataset(data_path + "test/", 'test.h5', args.batch_size, normalize=args.normalize, 
+                                    std_percentage=args.std_percentage, attitude=args.attitude, augmentations=False)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
    
 
     # print number of datapoints
-    print("Number of test datapoints:", test_dataset.X.shape[0])
+    print("Number of test datapoints:", test_dataset.X.shape[1])
 
     print('Loading model ...')
 
@@ -86,11 +108,13 @@ if __name__ == "__main__":
                     kernel_size=args.kernel_size, 
                     output_size=len(OUTPUT_FEATURES),
                     history_length=args.history_length,
+                    num_layers=args.num_layers,
+                    residual=args.residual,
                     dropout=args.dropout)
     elif args.model_type == "mlp":
         model = MLP(input_size=len(INPUT_FEATURES), 
                     output_size=len(OUTPUT_FEATURES),
-                    num_layers=args.num_layers, 
+                    num_layers=args.mlp_layers, 
                     dropout=args.dropout)
     model.load_state_dict(torch.load(model_path))
     model.to(args.device)
@@ -98,13 +122,12 @@ if __name__ == "__main__":
     batch = tqdm(test_dataloader, total=len(test_dataloader), desc="Testing")
     model.eval()
 
-    Y = np.zeros((test_dataset.X.shape[0], test_dataset.Y.shape[1]))
-    Y_hat = np.zeros((test_dataset.X.shape[0], test_dataset.Y.shape[1]))
+    Y = np.zeros((test_dataset.X.shape[1], test_dataset.Y.shape[0]))
+    Y_hat = np.zeros((test_dataset.X.shape[1], test_dataset.Y.shape[0]))
 
     # Inference speed computation
     with torch.no_grad():
         test_x, test_y = next(iter(test_dataloader))
-        print(test_x.shape, test_y.shape)
         test_x = test_x.to(args.device).float()
         test_y = test_y.to(args.device).float()
         frequency_hist = []
@@ -120,13 +143,14 @@ if __name__ == "__main__":
         print("Inference speed (Hz): ", np.mean(frequency_hist))
     
     # Inference
-
     with torch.no_grad():
 
         for i, (x, y) in enumerate(batch):
             x = x.to(args.device).float()
             y = y.to(args.device).float()
             y_pred = model(x)
+
+            print(y.shape, y_pred.shape)
             Y[i*args.batch_size:(i+1)*args.batch_size, :] = y.cpu().numpy()
             Y_hat[i*args.batch_size:(i+1)*args.batch_size, :] = y_pred.cpu().numpy()
     

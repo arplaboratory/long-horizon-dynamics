@@ -10,6 +10,7 @@ from models.mlp import MLP
 from models.lstm import LSTM
 from models.cnn import CNNModel
 
+from loss import FrobeniusLoss
 warnings.filterwarnings("ignore")
 
 
@@ -43,9 +44,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                                   kernel_size=args.kernel_size,
                                   output_size=output_size,
                                   history_length=args.history_length,
+                                  num_layers=args.num_layers,
+                                  residual=args.residual,
                                   dropout=args.dropout)
 
-        self.criterion = torch.nn.MSELoss()
+        self.mse = torch.nn.MSELoss()
+        self.frobenius = FrobeniusLoss()
         self.best_valid_loss = 1e8
       
 
@@ -82,11 +86,43 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x, y = train_batch
         x = x.float()
         y = y.float()
-
         y_hat = self.model(x)
-        loss = self.criterion(y_hat, y)
+        
+        # Velocity
+        pred_vel = y_hat[:, :3]
+
+        # Attitude
+        if self.args.attitude == 'euler':
+            pred_att = y_hat[:, 3:6]
+            pred_ang_vel = y_hat[:, 6:9]
+
+            gt_att = y[:, 3:6]
+            gt_ang_vel = y[:, 6:9]
+
+            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+
+        elif self.args.attitude == 'quaternion':
+            pred_att = y_hat[:, 3:7]
+            pred_ang_vel = y_hat[:, 7:10]
+
+            gt_att = y[:, 3:7]
+            gt_ang_vel = y[:, 7:10]
+
+            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+
+        elif self.args.attitude == 'rotation':
+            pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+            pred_ang_vel = y_hat[:, 12:15]
+
+            gt_att = y[:, 3:12].reshape(-1, 3, 3)
+            gt_ang_vel = y[:, 12:15]
+
+            loss = self.mse(pred_vel, y[:, :3]) + self.frobenius(pred_att, gt_att) + 10 * self.mse(pred_ang_vel, gt_ang_vel)
+        
+
         self.log('train_loss', loss, prog_bar=True)
         return loss
+    
     def test_step(self, test_batch, batch_idx):
         x, y = test_batch
         x = x.float()
@@ -101,7 +137,39 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x = x.float()
         y = y.float()
         y_hat = self.model(x)
-        loss = self.criterion(y_hat, y)
+        
+        # Velocity
+        pred_vel = y_hat[:, :3]
+
+        # Attitude
+        if self.args.attitude == 'euler':
+            pred_att = y_hat[:, 3:6]
+            pred_ang_vel = y_hat[:, 6:9]
+
+            gt_att = y[:, 3:6]
+            gt_ang_vel = y[:, 6:9]
+
+            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+
+        elif self.args.attitude == 'quaternion':
+            pred_att = y_hat[:, 3:7]
+            pred_ang_vel = y_hat[:, 7:10]
+
+            gt_att = y[:, 3:7]
+            gt_ang_vel = y[:, 7:10]
+
+            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+
+        elif self.args.attitude == 'rotation':
+            pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+            pred_ang_vel = y_hat[:, 12:15]
+
+            gt_att = y[:, 3:12].reshape(-1, 3, 3)
+            gt_ang_vel = y[:, 12:15]
+
+            loss = self.mse(pred_vel, y[:, :3]) + self.frobenius(pred_att, gt_att) + 10 * self.mse(pred_ang_vel, gt_ang_vel)
+
+
         self.log('valid_loss', loss, prog_bar=True)
         return loss
     

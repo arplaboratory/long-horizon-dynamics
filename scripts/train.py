@@ -29,12 +29,36 @@ if __name__ == "__main__":
     # save arguments
     save_args(args, experiment_path + "args.txt")
 
-    INPUT_FEATURES = ['u', 'v', 'w',
-                      'e0', 'e1', 'e2', 'e3',
-                      'p', 'q', 'r',
-                      'delta_e', 'delta_a', 'delta_r', 'delta_t']
-    OUTPUT_FEATURES = ['u', 'v', 'w',
-                       'p', 'q', 'r',]
+    # set input and output features based on attitude type from args
+    if args.attitude == "quaternion":
+        INPUT_FEATURES = ['u', 'v', 'w',
+                          'e0', 'e1', 'e2', 'e3',
+                          'p', 'q', 'r',
+                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+        OUTPUT_FEATURES = ['u', 'v', 'w',
+                           'e0', 'e1', 'e2', 'e3', 
+                           'p', 'q', 'r']
+    elif args.attitude == "rotation":
+        INPUT_FEATURES = ['u', 'v', 'w',
+                          'r11', 'r12', 'r13', 
+                          'r21', 'r22', 'r23',
+                          'r31', 'r32', 'r33',
+                          'p', 'q', 'r',
+                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+        OUTPUT_FEATURES = ['u', 'v', 'w',
+                           'r11', 'r12', 'r13', 
+                           'r21', 'r22', 'r23',
+                           'r31', 'r32', 'r33',
+                           'p', 'q', 'r']
+    elif args.attitude == "euler":
+        INPUT_FEATURES = ['u', 'v', 'w',
+                          'phi', 'theta', 'psi',
+                          'p', 'q', 'r',
+                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+        OUTPUT_FEATURES = ['u', 'v', 'w',
+                           'phi', 'theta', 'psi',
+                           'p', 'q', 'r']
+        
     
     # device
     args.device = "cuda:0"
@@ -42,18 +66,20 @@ if __name__ == "__main__":
     print("Training model on cuda:" + str(args.gpu_id) + "\n")
 
     # create the dataset
-    train_dataset = DynamicsDataset(data_path + "train/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
-                                    history_length=args.history_length, normalize=args.normalize, 
-                                    std_percentage=args.std_percentage, augmentations=args.augmentation)
+    train_dataset = DynamicsDataset(data_path + "train/", 'train.h5', args.batch_size, normalize=args.normalize, 
+                                    std_percentage=args.std_percentage, attitude=args.attitude, augmentations=args.augmentation)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
-    valid_dataset = DynamicsDataset(data_path + "valid/", args.batch_size, INPUT_FEATURES, OUTPUT_FEATURES, 
-                                    history_length=args.history_length, normalize=args.normalize, std_percentage=args.std_percentage, 
-                                    augmentations=False)
+    valid_dataset = DynamicsDataset(data_path + "valid/", 'valid.h5', args.batch_size, normalize=args.normalize, std_percentage=args.std_percentage, 
+                                    attitude=args.attitude, augmentations=False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
     # print number of datapoints
     print("Number of training datapoints:", train_dataset.X.shape[0])
+
+    # Print shape of input and output
+    print("Input shape:", train_dataset.X.shape)
+    print("Output shape:", train_dataset.Y.shape)
 
     if args.plot == True:
         plot_data(train_dataset.X, features = INPUT_FEATURES, 
@@ -62,9 +88,9 @@ if __name__ == "__main__":
 
     # Initialize the model
     model = DynamicsLearning(args, resources_path, experiment_path,
-                             input_size=train_dataset.X.shape[2],
-                             output_size=train_dataset.Y.shape[1],
-                             num_layers=[512, 256, 256, 128],
+                             input_size=len(INPUT_FEATURES),
+                             output_size=len(OUTPUT_FEATURES),
+                             num_layers=args.mlp_layers,
                              train_steps=train_dataset.num_steps,
                              valid_steps=valid_dataset.num_steps)
     trainer = pytorch_lightning.Trainer(accelerator="gpu", devices=args.num_devices, 
