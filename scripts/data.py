@@ -14,61 +14,86 @@ class DynamicsDataset(Dataset):
 
         self.normalize = normalize
         self.X, self.Y = self.load_data(data_path, hdf5_file)
+
+        self.history_length = self.X.shape[1]
         self.batch_size = batch_size
         self.num_steps = np.ceil(self.X.shape[0] / self.batch_size).astype(int)
         self.augmentations = augmentations
         self.std_percentage = std_percentage
         self.attitude = attitude
         
-        assert self.X.shape[1] == self.Y.shape[1]
+        assert self.X.shape[2] == self.Y.shape[1]
 
     def __len__(self):
-        return self.X.shape[1]
+        return self.X.shape[2]
 
     def __getitem__(self, idx):
 
-        x = self.X[:, idx]
+        x = self.X[:, :, idx]
         y = self.Y[:, idx]
             
         if self.augmentations and random.random() < 0.5:
 
             if self.attitude == 'quaternion':
-                attitude_euler = Quaternion2Euler(x[3:7])
-                attitude_euler += np.random.normal(0, self.std_percentage * np.abs(attitude_euler))
-
-                for feature_index in range(self.X.shape[0]):
-                    
-                    if feature_index < 3 or feature_index > 6:
-                        # Do not add noise to the attitude
-                        noise_std = self.std_percentage * np.abs(x[feature_index])
-                        x[feature_index] += np.random.normal(0, noise_std)    
-                noise_std = self.std_percentage * np.abs(x[feature_index])
-                x[3:7] = Euler2Quaternion(attitude_euler[0], attitude_euler[1], attitude_euler[2]).T
-
-            elif self.attitude == 'rotation':
-                attitude_quaternion = Rotation2Quaternion(x[3:12].reshape(3,3))
-                attitude_euler = Quaternion2Euler(attitude_quaternion)
                 
-                for feature_index in range(self.X.shape[0]):
-                    if feature_index < 3 or feature_index > 11:
-                        # Do not add noise to the attitude
-                        noise_std = self.std_percentage * np.abs(x[feature_index])
-                        x[feature_index] += np.random.normal(0, noise_std)
-                attitude_euler += np.random.normal(0, self.std_percentage * np.abs(attitude_euler))
-                attitude_quaternion = Euler2Quaternion(attitude_euler[0], attitude_euler[1], attitude_euler[2]).T
-                # Convert the quaternion to a rotation matrix
-                attitude_rotation = Quaternion2Rotation(attitude_quaternion)
-                x[3:12] = attitude_rotation.flatten()
+                for t in range(self.history_length):
+                    # Add noise to the attitude
+                    attitude_euler = Quaternion2Euler(x[3:7, t])
+                    attitude_euler += np.random.normal(0, self.std_percentage * np.abs(attitude_euler))
+                    x[3:7, t] = Euler2Quaternion(attitude_euler[0], attitude_euler[1], attitude_euler[2]).T
+
+                    for feature_index in range(self.X.shape[0]):
+                        if feature_index < 3 or feature_index > 6:
+                            noise_std = self.std_percentage * np.abs(x[feature_index, t])
+                            
+                            # Add noise to the input feature
+                            x[feature_index, t] += np.random.normal(0, noise_std)
+  
+                    
+            elif self.attitude == 'rotation':
+                feature_index = [0, 1, 2, 12, 13, 14]  # Modify this list with the desired indices
+
+                for t in range(0, self.history_length):
+                    attitude_quaternion = Rotation2Quaternion(x[3:12, t].reshape(3, 3))
+                    attitude_euler = Quaternion2Euler(attitude_quaternion)
+                    
+                    # Precompute constants
+                    noise_std_attitude = self.std_percentage * np.abs(attitude_euler)
+                    
+                    # Generate random noise for all elements at once
+                    noise = np.random.normal(0, noise_std_attitude)
+                    
+                    # Add noise to attitude quaternion
+                    attitude_euler += noise
+                    
+                    # Convert back to quaternion
+                    attitude_quaternion = Euler2Quaternion(attitude_euler[0], attitude_euler[1], attitude_euler[2]).T
+                    
+                    # Apply quaternion to rotation matrix transformation
+                    attitude_rotation = Quaternion2Rotation(attitude_quaternion)
+                    
+                    # Replace the entire column with the updated values
+                    x[3:12, t] = attitude_rotation.flatten()
+                    
+                    # Apply noise to elements where feature_index < 3 or feature_index > 11
+                    noise_std_features = self.std_percentage * np.abs(x[:3, t])
+                    x[:3, t] += np.random.normal(0, noise_std_features)
+                    
+                    # Apply noise to elements specified by feature_index
+                    noise_std_features = self.std_percentage * np.abs(x[feature_index, t])
+                    x[feature_index, t] += np.random.normal(0, noise_std_features)
+
 
             elif self.attitude == 'euler':
-                for feature_index in range(self.X.shape[0]):
-                    # Do not add noise to the attitude
-                    noise_std = self.std_percentage * np.abs(x[feature_index])
-                    
-                    # Add noise to the input feature
-                    x[feature_index] += np.random.normal(0, noise_std)
-
-        return x, y
+                for t in range(self.history_length):
+                    for feature_index in range(self.X.shape[0]):
+                        # Do not add noise to the attitude
+                        noise_std = self.std_percentage * np.abs(x[feature_index, t])
+                        
+                        # Add noise to the input feature
+                        x[feature_index, t] += np.random.normal(0, noise_std)
+       
+        return x.T, y
         
     def load_data(self, hdf5_path, hdf5_file):
         with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 

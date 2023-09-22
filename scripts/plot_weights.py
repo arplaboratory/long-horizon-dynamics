@@ -24,13 +24,42 @@ from data import DynamicsDataset
 from models.lstm import LSTM
 from models.cnn import CNNModel
 from models.mlp import MLP
-from models.tcn import TCN  
 
 import sys
 import glob
 import time 
 import os
 from tqdm import tqdm
+
+# Function to recursively find linear layers and save their weight distribution plots
+def find_and_save_linear_layers(module, module_name, save_dir):
+    for name, child in module.named_children():
+        if isinstance(child, nn.Linear):
+            # Extract the weights
+            weights = child.weight.data.cpu().numpy().flatten()
+
+            # Create a histogram
+            plt.figure(figsize=(8, 6))
+            n, bins, patches = plt.hist(weights, bins=50, density=True, alpha=0.7, color='skyblue', edgecolor='black')
+
+            # Add labels and title
+            plt.title(f'Weight Distribution - {module_name} ({name})', fontsize=16)
+            plt.xlabel('Weight Value', fontsize=14)
+            plt.ylabel('Frequency', fontsize=14)
+
+            # Add a grid
+            plt.grid(axis='y', linestyle='--', alpha=0.6)
+
+            # Add a legend
+            plt.legend([f'Mean: {np.mean(weights):.2f}', f'Std Dev: {np.std(weights):.2f}'], fontsize=12)
+
+            # Save the plot as an image file
+            save_path = os.path.join(save_dir, f'weight_distribution_{module_name}_{name}.png')
+            plt.savefig(save_path, bbox_inches='tight')
+
+        else:
+            # If not a linear layer, recursively check its children
+            find_and_save_linear_layers(child, f"{module_name} ({name})", save_dir)
 
 
 if __name__ == "__main__":
@@ -48,7 +77,7 @@ if __name__ == "__main__":
     print("Testing Dynamics model:", model_path)
     
     # device
-    args.device = "cuda:0"
+    args.device = "cpu"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
 
     # set input and output features based on attitude type from args
@@ -62,15 +91,15 @@ if __name__ == "__main__":
                            'p', 'q', 'r']
     elif args.attitude == "rotation":
         INPUT_FEATURES = ['u', 'v', 'w',
-                          'r11', 'r12', 'r13', 
-                          'r21', 'r22', 'r23',
-                          'r31', 'r32', 'r33',
+                          'r11', 'r21', 'r31', 
+                          'r12', 'r22', 'r32',
+                          'r13', 'r23', 'r33',
                           'p', 'q', 'r',
                           'delta_e', 'delta_a', 'delta_r', 'delta_t']
         OUTPUT_FEATURES = ['u', 'v', 'w',
-                           'r11', 'r21', 'r31', 
-                           'r12', 'r22', 'r32',
-                           'r13', 'r23', 'r33',
+                           'r11', 'r12', 'r13', 
+                           'r21', 'r22', 'r23',
+                           'r31', 'r32', 'r33',
                            'p', 'q', 'r']
     elif args.attitude == "euler":
         INPUT_FEATURES = ['u', 'v', 'w',
@@ -89,8 +118,7 @@ if __name__ == "__main__":
    
 
     # print number of datapoints
-    print("Shape of test dataset:", test_dataset.X.shape)
-    print("Number of test datapoints:", test_dataset.X.shape[2])
+    print("Number of test datapoints:", test_dataset.X.shape[1])
 
     print('Loading model ...')
 
@@ -114,70 +142,16 @@ if __name__ == "__main__":
                     residual=args.residual,
                     dropout=args.dropout)
     elif args.model_type == "mlp":
-        model = MLP(input_size=test_dataset.X.shape[0], 
+        model = MLP(input_size=len(INPUT_FEATURES), 
                     output_size=len(OUTPUT_FEATURES),
                     num_layers=args.mlp_layers, 
                     dropout=args.dropout)
-    elif args.model_type == "tcn":
-        model = TCN(num_inputs=test_dataset.X.shape[0], 
-                    num_channels=args.num_channels,
-                    kernel_size=args.kernel_size, 
-                    dropout=args.dropout, 
-                    num_outputs=test_dataset.X.shape[0]-4)
     model.load_state_dict(torch.load(model_path))
-    model.to(args.device)
-    
-    batch = tqdm(test_dataloader, total=len(test_dataloader), desc="Testing")
-    model.eval()
 
-    Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
-    Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
-
-    # Inference speed computation
-    with torch.no_grad():
-        test_x, test_y = next(iter(test_dataloader))
-        test_x = test_x.to(args.device).float()
-        test_y = test_y.to(args.device).float()
-        frequency_hist = []
-        for k in range(11):
-            starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
-            starter.record()
-            y_pred = model(test_x)
-            ender.record()
-            # Waits for everything to finish running
-            torch.cuda.synchronize()
-            if k:
-                frequency_hist.append(1. / (starter.elapsed_time(ender) / 1000))
-        print("Inference speed (Hz): ", np.mean(frequency_hist))
-    
-    # Inference
-    with torch.no_grad():
-
-        for i, (x, y) in enumerate(batch):
-            x = x.to(args.device).float()
-            y = y.to(args.device).float()
-
-            y_pred = model(x)
-
-            Y[i*args.batch_size:(i+1)*args.batch_size, :] = y.cpu().numpy()
-            Y_hat[i*args.batch_size:(i+1)*args.batch_size, :] = y_pred.cpu().numpy()
-    
-    # Plotting on pdf file
-    
-    Y = Y[::50, :]
-    Y_hat = Y_hat[::50, :]
-
-    with PdfPages(experiment_path + "plots/test.pdf") as pdf:
-        for i in range(len(OUTPUT_FEATURES)):
-            fig = plt.figure()
-            plt.plot(Y[:, i], label="True")
-            plt.plot(Y_hat[:, i], label="Predicted")
-            plt.xlabel("Time (s)")
-            plt.ylabel(OUTPUT_FEATURES[i])
-            plt.legend()
-            pdf.savefig(fig)
-            plt.close(fig)
-
+    # Save the weight distribution plots
+    save_dir = experiment_path + "plots/"
+    check_folder_paths([save_dir])
+    find_and_save_linear_layers(model, "MLP", save_dir)
 
     
-    
+   

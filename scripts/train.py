@@ -75,7 +75,7 @@ if __name__ == "__main__":
     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
     # print number of datapoints
-    print("Number of training datapoints:", train_dataset.X.shape[0])
+    print("Number of training datapoints:", train_dataset.X.shape[2])
 
     # Print shape of input and output
     print("Input shape:", train_dataset.X.shape)
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     # Initialize the model
     model = DynamicsLearning(args, resources_path, experiment_path,
-                             input_size=len(INPUT_FEATURES),
+                             input_size=train_dataset.X.shape[0],
                              output_size=len(OUTPUT_FEATURES),
                              num_layers=args.mlp_layers,
                              train_steps=train_dataset.num_steps,
