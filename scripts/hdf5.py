@@ -109,7 +109,9 @@ def hdf5(data_path, hdf5_file, attitude, position, history_length):
                 for i in range(num_samples):
                     X[i,:] = data_np[i,:]
                     Y[i,:] = data_np[i+1,:data_np.shape[1] - 4]
+
             else:
+                
                 num_samples = data_np.shape[0] - history_length
 
                 if args.model_type == "mlp":
@@ -134,6 +136,16 @@ def hdf5(data_path, hdf5_file, attitude, position, history_length):
 
     X = np.concatenate(all_X, axis=0)
     Y = np.concatenate(all_Y, axis=0)
+
+    # if normalize save mean and std for each feature in the training set and normalize the data
+    if args.normalize:
+        mean = np.mean(X, axis=0)
+        std = np.std(X, axis=0)
+
+        np.save(data_path + 'mean.npy', mean)
+        np.save(data_path + 'std.npy', std)
+        X = (X - mean) / std
+    
 
     # save the data
     with h5py.File(data_path + hdf5_file, 'w') as hf:

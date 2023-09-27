@@ -19,7 +19,7 @@ colors = ["#7d7376","#365282","#e84c53","#edb120"]
 
 
 from utils import check_folder_paths, plot_data
-from config import parse_args
+from config import parse_args, load_args
 from data import DynamicsDataset
 from models.lstm import LSTM
 from models.cnn import CNNModel
@@ -35,9 +35,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
 
-    # parse arguments
-    args = parse_args()
-
+    
     # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
@@ -45,6 +43,9 @@ if __name__ == "__main__":
     experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
 
+
+    args = load_args(experiment_path + "args.txt")
+    print(experiment_path)
     print("Testing Dynamics model:", model_path)
     
     # device
@@ -82,15 +83,14 @@ if __name__ == "__main__":
                            'p', 'q', 'r']
  
     # create the dataset
-    test_dataset = DynamicsDataset(data_path + "test/", 'test.h5', args.batch_size, normalize=args.normalize, 
-                                    std_percentage=args.std_percentage, attitude=args.attitude, augmentations=False)
+    test_dataset = DynamicsDataset(data_path + "test/", 'test.h5', args)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
    
 
     # print number of datapoints
-    print("Shape of test dataset:", test_dataset.X.shape)
-    print("Number of test datapoints:", test_dataset.X.shape[2])
+    print("Shape of input:", test_dataset.X_shape)
+    print("Shape of output:", test_dataset.Y_shape)
 
     print('Loading model ...')
 
@@ -114,24 +114,28 @@ if __name__ == "__main__":
                     residual=args.residual,
                     dropout=args.dropout)
     elif args.model_type == "mlp":
-        model = MLP(input_size=test_dataset.X.shape[0], 
+        model = MLP(input_size=len(INPUT_FEATURES), 
                     output_size=len(OUTPUT_FEATURES),
                     num_layers=args.mlp_layers, 
                     dropout=args.dropout)
     elif args.model_type == "tcn":
-        model = TCN(num_inputs=test_dataset.X.shape[0], 
+        model = TCN(num_inputs=len(INPUT_FEATURES), 
                     num_channels=args.num_channels,
                     kernel_size=args.kernel_size, 
                     dropout=args.dropout, 
-                    num_outputs=test_dataset.X.shape[0]-4)
+                    num_outputs=len(INPUT_FEATURES)-4)
     model.load_state_dict(torch.load(model_path))
     model.to(args.device)
     
     batch = tqdm(test_dataloader, total=len(test_dataloader), desc="Testing")
     model.eval()
 
-    Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
-    Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
+    if args.history_length == 0:
+        Y = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
+        Y_hat = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
+    else:
+        Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
+        Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
 
     # Inference speed computation
     with torch.no_grad():
@@ -151,17 +155,63 @@ if __name__ == "__main__":
         print("Inference speed (Hz): ", np.mean(frequency_hist))
     
     # Inference
-    with torch.no_grad():
+    # with torch.no_grad():
 
+        # for i, (x, y) in enumerate(batch):
+        #     x = x.to(args.device).float()
+        #     y = y.to(args.device).float()
+
+        #     y_pred = model(x)
+
+        #     Y[i*args.batch_size:(i+1)*args.batch_size, :] = y.cpu().numpy()
+        #     Y_hat[i*args.batch_size:(i+1)*args.batch_size, :] = y_pred.cpu().numpy()
+    
+    # Get initial state, control action and propagate it through the model
+    with torch.no_grad():
         for i, (x, y) in enumerate(batch):
             x = x.to(args.device).float()
             y = y.to(args.device).float()
 
-            y_pred = model(x)
+            for j in range(x.shape[0]):
 
-            Y[i*args.batch_size:(i+1)*args.batch_size, :] = y.cpu().numpy()
-            Y_hat[i*args.batch_size:(i+1)*args.batch_size, :] = y_pred.cpu().numpy()
-    
+                if args.history_length == 0:
+                    if j == 0:
+                        y_pred = model(x[j, :].unsqueeze(0))
+                        Y[j, :] = y[j, :].cpu().numpy()
+                        Y_hat[j, :] = y_pred.cpu().numpy()
+                    else:
+
+                        # copy y_pred from previous time step
+                        x_now = y_pred.clone()
+                        u_curr = x[j, -4:].unsqueeze(0)
+                    
+
+                        y_pred = model(torch.cat((y_pred, u_curr), dim=1))
+
+                        # Save y_pred and y at every time step and plot it
+                        Y[j, :] = y[j, :].cpu().numpy()
+                        Y_hat[j, :] = y_pred.cpu().numpy()
+                else:
+                    if j == 0:
+                        y_pred = model(x[j, :, :].unsqueeze(0))
+                        Y[j, :] = y[j, :].cpu().numpy()
+                        Y_hat[j, :] = y_pred.cpu().numpy()
+                    else:
+
+                        # copy y_pred from previous time step
+                        x_now = y_pred.clone()
+
+                        # update x with the new state x_now 
+                        x[j, -1, :x_now.shape[1]] = x_now[0, :]
+                        y_pred = model(x[j, :, :].unsqueeze(0))
+
+                        # # Save y_pred and y at every time step and plot it
+                        Y[j, :] = y[j, :].cpu().numpy()
+                        Y_hat[j, :] = y_pred.cpu().numpy()
+
+           
+
+
     # Plotting on pdf file
     
     Y = Y[::50, :]
@@ -177,6 +227,9 @@ if __name__ == "__main__":
             plt.legend()
             pdf.savefig(fig)
             plt.close(fig)
+
+    
+    
 
 
     

@@ -66,20 +66,15 @@ if __name__ == "__main__":
     print("Training model on cuda:" + str(args.gpu_id) + "\n")
 
     # create the dataset
-    train_dataset = DynamicsDataset(data_path + "train/", 'train.h5', args.batch_size, normalize=args.normalize, 
-                                    std_percentage=args.std_percentage, attitude=args.attitude, augmentations=args.augmentation)
+    train_dataset = DynamicsDataset(data_path + "train/", 'train.h5', args)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
-    valid_dataset = DynamicsDataset(data_path + "valid/", 'valid.h5', args.batch_size, normalize=args.normalize, std_percentage=args.std_percentage, 
-                                    attitude=args.attitude, augmentations=False)
+    valid_dataset = DynamicsDataset(data_path + "valid/", 'valid.h5', args)
     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
-    # print number of datapoints
-    print("Number of training datapoints:", train_dataset.X.shape[2])
-
     # Print shape of input and output
-    print("Input shape:", train_dataset.X.shape)
-    print("Output shape:", train_dataset.Y.shape)
+    print("Input shape:", train_dataset.X_shape)
+    print("Output shape:", train_dataset.Y_shape)
 
     if args.plot == True:
         plot_data(train_dataset.X, features = INPUT_FEATURES, 
@@ -88,11 +83,12 @@ if __name__ == "__main__":
 
     # Initialize the model
     model = DynamicsLearning(args, resources_path, experiment_path,
-                             input_size=train_dataset.X.shape[0],
+                             input_size=len(INPUT_FEATURES),
                              output_size=len(OUTPUT_FEATURES),
                              num_layers=args.mlp_layers,
                              train_steps=train_dataset.num_steps,
                              valid_steps=valid_dataset.num_steps)
+    
     trainer = pytorch_lightning.Trainer(accelerator="gpu", devices=args.num_devices, 
                                         max_epochs=args.epochs,val_check_interval=args.val_freq, 
                                         default_root_dir=experiment_path)

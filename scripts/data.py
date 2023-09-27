@@ -9,30 +9,104 @@ import scipy.linalg as linalg
 import h5py
 
 class DynamicsDataset(Dataset):
-    def __init__(self, data_path, hdf5_file, batch_size, normalize, std_percentage,
-                 attitude, augmentations=True):
+    def __init__(self, data_path, hdf5_file, args):
 
-        self.normalize = normalize
+        self.normalize = args.normalize
         self.X, self.Y = self.load_data(data_path, hdf5_file)
 
-        self.history_length = self.X.shape[1]
-        self.batch_size = batch_size
+        self.history_length = args.history_length
+        self.batch_size = args.batch_size
         self.num_steps = np.ceil(self.X.shape[0] / self.batch_size).astype(int)
-        self.augmentations = augmentations
-        self.std_percentage = std_percentage
-        self.attitude = attitude
+        self.augmentations = args.augmentation
+        self.std_percentage = args.std_percentage
+        self.attitude = args.attitude
         
-        assert self.X.shape[2] == self.Y.shape[1]
+        if self.history_length == 0:
+            assert self.X.shape[1] == self.Y.shape[1]
+            assert self.X.shape[0] == self.Y.shape[0] + 4
+            self.X_shape = self.X.shape
+            self.Y_shape = self.Y.shape
+        else:
+            assert self.X.shape[2] == self.Y.shape[1]
+            assert self.X.shape[0] == self.Y.shape[0] + 4
+            self.X_shape = self.X.shape
+            self.Y_shape = self.Y.shape
+
 
     def __len__(self):
-        return self.X.shape[2]
+
+        if self.history_length == 0:
+            return self.X.shape[1]
+        else:
+            return self.X.shape[2] 
 
     def __getitem__(self, idx):
 
-        x = self.X[:, :, idx]
-        y = self.Y[:, idx]
+        if self.history_length == 0:
+            x = self.X[:, idx]
+            y = self.Y[:, idx]
+
+        else:
+            x = self.X[:, :, idx]
+            y = self.Y[:, idx]
             
         if self.augmentations and random.random() < 0.5:
+            x = self.augment(x)
+        
+        return x.T, y
+        
+    def load_data(self, hdf5_path, hdf5_file):
+        with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 
+            X = hf['X'][:]
+            Y = hf['Y'][:]
+        return X.T, Y.T
+    
+    def augment(self, x):
+        """
+        Augments the input data with noise
+        :param x: input data
+        :return: augmented data
+        """
+
+
+        if self.history_length == 0:
+
+            if self.attitude == 'quaternion':
+
+                attitude_euler = Quaternion2Euler(x[3:7])
+                attitude_euler += np.random.normal(0, self.std_percentage * np.abs(attitude_euler))
+                x[3:7] = Euler2Quaternion(attitude_euler[0], attitude_euler[1], attitude_euler[2]).T
+
+                for feature_index in range(self.X.shape[0]):
+                    if feature_index < 3 or feature_index > 6:
+                        noise_std = self.std_percentage * np.abs(x[feature_index])
+
+                        # Add noise to the input feature
+                        x[feature_index] += np.random.normal(0, noise_std)
+
+            elif self.attitude == 'rotation':
+
+                attitude_quaternion = Rotation2Quaternion(x[3:12].reshape(3, 3))
+                attitude_euler = Quaternion2Euler(attitude_quaternion)
+                attitude_euler += np.random.normal(0, self.std_percentage * np.abs(attitude_euler))
+                attitude_quaternion = Euler2Quaternion(attitude_euler[0], attitude_euler[1], attitude_euler[2]).T
+                x[3:12] = Quaternion2Rotation(attitude_quaternion).flatten()
+
+                for feature_index in range(self.X.shape[0]):
+                    if feature_index < 3 or feature_index > 11:
+                        noise_std = self.std_percentage * np.abs(x[feature_index])
+
+                        # Add noise to the input feature
+                        x[feature_index] += np.random.normal(0, noise_std)
+
+            elif self.attitude == 'euler':
+                for feature_index in range(self.X.shape[0]):
+                    # Do not add noise to the attitude
+                    noise_std = self.std_percentage * np.abs(x[feature_index])
+
+                    # Add noise to the input feature
+                    x[feature_index] += np.random.normal(0, noise_std)
+        else:
 
             if self.attitude == 'quaternion':
                 
@@ -48,8 +122,7 @@ class DynamicsDataset(Dataset):
                             
                             # Add noise to the input feature
                             x[feature_index, t] += np.random.normal(0, noise_std)
-  
-                    
+            
             elif self.attitude == 'rotation':
                 feature_index = [0, 1, 2, 12, 13, 14]  # Modify this list with the desired indices
 
@@ -82,8 +155,7 @@ class DynamicsDataset(Dataset):
                     # Apply noise to elements specified by feature_index
                     noise_std_features = self.std_percentage * np.abs(x[feature_index, t])
                     x[feature_index, t] += np.random.normal(0, noise_std_features)
-
-
+            
             elif self.attitude == 'euler':
                 for t in range(self.history_length):
                     for feature_index in range(self.X.shape[0]):
@@ -92,15 +164,9 @@ class DynamicsDataset(Dataset):
                         
                         # Add noise to the input feature
                         x[feature_index, t] += np.random.normal(0, noise_std)
-       
-        return x.T, y
-        
-    def load_data(self, hdf5_path, hdf5_file):
-        with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 
-            X = hf['X'][:]
-            Y = hf['Y'][:]
-        return X.T, Y.T
-    
+        return x
+
+
 def Quaternion2Euler(quaternion):
     """
     converts a quaternion attitude to an euler angle attitude

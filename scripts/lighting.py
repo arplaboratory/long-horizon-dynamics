@@ -54,6 +54,9 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                              kernel_size=args.kernel_size,
                              dropout=args.dropout,
                              num_outputs=input_size-4)
+        # else print error warning
+        else:
+            print("Error: Model type not found!")
             
         self.mse = torch.nn.MSELoss()
         self.frobenius = FrobeniusLoss()
@@ -119,22 +122,24 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
 
         elif self.args.attitude == 'rotation':
-            pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-            pred_ang_vel = y_hat[:, 12:15]
+            # pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+            # pred_ang_vel = y_hat[:, 12:15]
 
-            gt_att = y[:, 3:12].reshape(-1, 3, 3)
-            gt_ang_vel = y[:, 12:15]
+            # gt_att = y[:, 3:12].reshape(-1, 3, 3)
+            # gt_ang_vel = y[:, 12:15]
 
-            loss_vel = self.mse(pred_vel, y[:, :3])
+            # loss_vel = self.mse(pred_vel, y[:, :3])
 
-            if self.args.rot_loss:
-                loss_att = self.frobenius(pred_att, gt_att)
-            else:
-                loss_att = self.mse(pred_att, gt_att)
+            # if self.args.rot_loss:
+            #     loss_att = self.frobenius(pred_att, gt_att)
+            # else:
+            #     loss_att = self.mse(pred_att, gt_att)
             
-            loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
+            # loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
 
-            loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+            # loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+            
+            loss = self.mse(y_hat, y)
 
         self.log('train_loss', loss, prog_bar=True)
         return loss
@@ -178,22 +183,24 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
 
         elif self.args.attitude == 'rotation':
-            pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-            pred_ang_vel = y_hat[:, 12:15]
+            # pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+            # pred_ang_vel = y_hat[:, 12:15]
 
-            gt_att = y[:, 3:12].reshape(-1, 3, 3)
-            gt_ang_vel = y[:, 12:15]
+            # gt_att = y[:, 3:12].reshape(-1, 3, 3)
+            # gt_ang_vel = y[:, 12:15]
 
-            loss_vel = self.mse(pred_vel, y[:, :3])
+            # loss_vel = self.mse(pred_vel, y[:, :3])
 
-            if self.args.rot_loss:
-                loss_att = self.frobenius(pred_att, gt_att)
-            else:
-                loss_att = self.mse(pred_att, gt_att)
+            # if self.args.rot_loss:
+            #     loss_att = self.frobenius(pred_att, gt_att)
+            # else:
+            #     loss_att = self.mse(pred_att, gt_att)
             
-            loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
+            # loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
 
-            loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+            # loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+
+            loss = self.mse(y_hat, y)
 
         self.log('valid_loss', loss, prog_bar=True)
         return loss

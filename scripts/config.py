@@ -12,27 +12,27 @@ def parse_args():
     parser.add_argument('-b', '--batch_size',      type=int,      default=16384)
     parser.add_argument('--dropout',               type=float,    default=0.0)
     parser.add_argument('--weight_decay',          type=float,    default=0.0)
-    parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0005)
+    parser.add_argument('-l', '--learning_rate',   type=float,    default=0.001)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=False)
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('-p', '--plot',            type=bool,     default=False)
     parser.add_argument('--save_freq',             type=int,      default=50)
     parser.add_argument('--normalize',             type=bool,     default=False)
     parser.add_argument('--val_freq',              type=int,      default=1)
-    parser.add_argument('--std_percentage',        type=float,    default=0.30)
+    parser.add_argument('--std_percentage',        type=float,    default=0.25)
     parser.add_argument('--model_type',            type=str,      default='tcn')
-    parser.add_argument('--history_length',        type=int,      default=4)
-    parser.add_argument('--use_history',           type=bool,     default=True)
-    parser.add_argument('--augmentation',          type=bool,     default=True)
+    parser.add_argument('--history_length',        type=int,      default=20)
+    parser.add_argument('--use_history',           type=bool,     default=True) 
+    parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--attitude',              type=str,      default='rotation')
     parser.add_argument('--position',              type=bool,     default=False)
     parser.add_argument('--vel_loss',              type=float,    default=1)
     parser.add_argument('--att_loss',              type=float,    default=1)
     parser.add_argument('--ang_vel_loss',          type=float,    default=1)
-
+    parser.add_argument('--rot_loss',              type=bool,     default=False)
     # MLP Model
     parser.add_argument('--mlp_layers',            type=list,     default=[256, 128, 64])
-    parser.add_argument('--rot_loss',              type=bool,     default=False)
+    
     # LSTM Model
     parser.add_argument('--hidden_size',           type=int,      default=64)
 
@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument('--residual',              type=bool,     default=False)
 
     # TCN Model
-    parser.add_argument('--num_channels',          type=list,     default=[64, 128, 256])
+    parser.add_argument('--num_channels',          type=list,     default=[64, 32, 32])
 
     return parser.parse_args()
 
@@ -83,4 +83,8 @@ def load_args(file_path):
             elif arg_type == "tuple":
                 arg_value = [int(e) for e in arg_value[1:-1].split(', ')]
                 parser.add_argument("--" + arg_name, type=tuple, default=arg_value)
+            elif arg_type == "bool":
+                arg_value = True if arg_value == "True" else False
+                parser.add_argument("--" + arg_name, type=bool, default=arg_value)
+
     return parser.parse_args()
