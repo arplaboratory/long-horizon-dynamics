@@ -15,6 +15,7 @@ class DynamicsDataset(Dataset):
         self.X, self.Y = self.load_data(data_path, hdf5_file)
 
         self.history_length = args.history_length
+        self.unroll_length = args.unroll_length
         self.batch_size = args.batch_size
         self.num_steps = np.ceil(self.X.shape[0] / self.batch_size).astype(int)
         self.augmentations = args.augmentation
@@ -23,12 +24,18 @@ class DynamicsDataset(Dataset):
         
         if self.history_length == 0:
             assert self.X.shape[1] == self.Y.shape[1]
-            assert self.X.shape[0] == self.Y.shape[0] + 4
+            # assert self.X.shape[0] == self.Y.shape[0] + 4
             self.X_shape = self.X.shape
             self.Y_shape = self.Y.shape
+        # else:
+        #     assert self.X.shape[2] == self.Y.shape[1]
+        #     assert self.X.shape[0] == self.Y.shape[0] + 4
+        #     self.X_shape = self.X.shape
+        #     self.Y_shape = self.Y.shape
+
         else:
-            assert self.X.shape[2] == self.Y.shape[1]
-            assert self.X.shape[0] == self.Y.shape[0] + 4
+            assert self.X.shape[2] == self.Y.shape[2]
+            assert self.X.shape[0] == self.Y.shape[0]
             self.X_shape = self.X.shape
             self.Y_shape = self.Y.shape
 
@@ -47,10 +54,12 @@ class DynamicsDataset(Dataset):
             y = self.Y[:, idx]
 
         else:
-            x = self.X[:, :, idx]
-            y = self.Y[:, idx]
+            # x = self.X[:, idx]
+            # Flatten the input data
+            x = self.X[:, :, idx].flatten()
+            y = self.Y[:, :, idx]
             
-        if self.augmentations and random.random() < 0.5:
+        if self.augmentations and random.random() < 0.8:
             x = self.augment(x)
         
         return x.T, y
@@ -85,13 +94,16 @@ class DynamicsDataset(Dataset):
                         x[feature_index] += np.random.normal(0, noise_std)
 
             elif self.attitude == 'rotation':
-
+                
                 attitude_quaternion = Rotation2Quaternion(x[3:12].reshape(3, 3))
                 attitude_euler = Quaternion2Euler(attitude_quaternion)
+            
                 attitude_euler += np.random.normal(0, self.std_percentage * np.abs(attitude_euler))
                 attitude_quaternion = Euler2Quaternion(attitude_euler[0], attitude_euler[1], attitude_euler[2]).T
                 x[3:12] = Quaternion2Rotation(attitude_quaternion).flatten()
 
+                # print determinant of rotation matrix
+                
                 for feature_index in range(self.X.shape[0]):
                     if feature_index < 3 or feature_index > 11:
                         noise_std = self.std_percentage * np.abs(x[feature_index])

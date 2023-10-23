@@ -28,10 +28,14 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.pred_step = pred_steps
 
         if args.model_type == "mlp":
+
+            if args.history_length > 0:
+                input_size = input_size * args.history_length
             self.model = MLP(input_size=input_size, 
                     output_size=output_size,
                     num_layers=num_layers, 
                     dropout=args.dropout)
+            
         elif args.model_type == "lstm":
             self.model = LSTM(input_size=input_size,
                               hidden_size=args.hidden_size,
@@ -97,50 +101,94 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x, y = train_batch
         x = x.float()
         y = y.float()
-        y_hat = self.model(x)
         
-        # Velocity
-        pred_vel = y_hat[:, :3]
+        loss = 0
+        for t in range(self.args.unroll_length):
+            if t == 0:
+                y_hat = self.model(x)
 
-        # Attitude
-        if self.args.attitude == 'euler':
-            pred_att = y_hat[:, 3:6]
-            pred_ang_vel = y_hat[:, 6:9]
+                pred_vel = y_hat[:, :3]
+                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+                pred_ang_vel = y_hat[:, 12:15]
 
-            gt_att = y[:, 3:6]
-            gt_ang_vel = y[:, 6:9]
+                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
+                gt_ang_vel = y[:, 12:15, t]
 
-            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+                loss_vel = self.mse(pred_vel, y[:, :3, t])
+                loss_att = self.mse(pred_att, gt_att)
+                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
 
-        elif self.args.attitude == 'quaternion':
-            pred_att = y_hat[:, 3:7]
-            pred_ang_vel = y_hat[:, 7:10]
+                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+                
+            else:
+                
+                x_now = y_hat.clone()
+                u_curr = y[:, -4:, t-1]
 
-            gt_att = y[:, 3:7]
-            gt_ang_vel = y[:, 7:10]
+                # remove the first state from x, slide the rest and add the new state at the end
+                # x is of shape (batch_size, history_length*input_size)
+                x_curr_history = x[:, 19:]
+                x_curr_history = torch.cat((x_curr_history.clone(), x_now), dim=1)
+                
+                # print(x_now.shape, y_hat.shape, x.shape, torch.cat((x, u_curr), dim=1).shape, u_curr.shape, '========')
+                y_hat = self.model(torch.cat((x_curr_history, u_curr), dim=1))
 
-            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+                pred_vel = y_hat[:, :3]
+                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+                pred_ang_vel = y_hat[:, 12:15]
 
-        elif self.args.attitude == 'rotation':
-            # pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-            # pred_ang_vel = y_hat[:, 12:15]
+                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
+                gt_ang_vel = y[:, 12:15, t]
 
-            # gt_att = y[:, 3:12].reshape(-1, 3, 3)
-            # gt_ang_vel = y[:, 12:15]
+                loss_vel = self.mse(pred_vel, y[:, :3, t])
+                loss_att = self.mse(pred_att, gt_att)
+                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
 
-            # loss_vel = self.mse(pred_vel, y[:, :3])
+                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
 
-            # if self.args.rot_loss:
-            #     loss_att = self.frobenius(pred_att, gt_att)
-            # else:
-            #     loss_att = self.mse(pred_att, gt_att)
+
+        # y_hat = self.model(x)
+        
+        # # Velocity
+        # pred_vel = y_hat[:, :3]
+
+        # # Attitude
+        # if self.args.attitude == 'euler':
+        #     pred_att = y_hat[:, 3:6]
+        #     pred_ang_vel = y_hat[:, 6:9]
+
+        #     gt_att = y[:, 3:6]
+        #     gt_ang_vel = y[:, 6:9]
+
+        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+
+        # elif self.args.attitude == 'quaternion':
+        #     pred_att = y_hat[:, 3:7]
+        #     pred_ang_vel = y_hat[:, 7:10]
+
+        #     gt_att = y[:, 3:7]
+        #     gt_ang_vel = y[:, 7:10]
+
+        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+
+        # elif self.args.attitude == 'rotation':
+        #     pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+        #     pred_ang_vel = y_hat[:, 12:15]
+
+        #     gt_att = y[:, 3:12].reshape(-1, 3, 3)
+        #     gt_ang_vel = y[:, 12:15]
+
+        #     loss_vel = self.mse(pred_vel, y[:, :3])
+
+        #     if self.args.rot_loss:
+        #         loss_att = self.frobenius(pred_att, gt_att)
+        #     else:
+        #         loss_att = self.mse(pred_att, gt_att)
             
-            # loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
+        #     loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
 
-            # loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+        #     loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
             
-            loss = self.mse(y_hat, y)
-
         self.log('train_loss', loss, prog_bar=True)
         return loss
     
@@ -157,52 +205,98 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x, y = valid_batch
         x = x.float()
         y = y.float()
-        y_hat = self.model(x)
+
         
+
+        loss = 0
+        for t in range(self.args.unroll_length):
+            if t == 0:
+                y_hat = self.model(x)
+
+                pred_vel = y_hat[:, :3]
+                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+                pred_ang_vel = y_hat[:, 12:15]
+
+                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
+                gt_ang_vel = y[:, 12:15, t]
+
+                loss_vel = self.mse(pred_vel, y[:, :3, t])
+                loss_att = self.mse(pred_att, gt_att)
+                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
+
+                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+                
+            else:
+                
+                x_now = y_hat.clone()
+                u_curr = y[:, -4:, t-1]
+
+                # remove the first state from x, slide the rest and add the new state at the end
+                # x is of shape (batch_size, history_length*input_size)
+                x_curr_history = x[:, 19:]
+                x_curr_history = torch.cat((x_curr_history.clone(), x_now), dim=1)
+                
+                # print(x_now.shape, y_hat.shape, x.shape, torch.cat((x, u_curr), dim=1).shape, u_curr.shape, '========')
+                y_hat = self.model(torch.cat((x_curr_history, u_curr), dim=1))
+
+                pred_vel = y_hat[:, :3]
+                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+                pred_ang_vel = y_hat[:, 12:15]
+
+                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
+                gt_ang_vel = y[:, 12:15, t]
+
+                loss_vel = self.mse(pred_vel, y[:, :3, t])
+                loss_att = self.mse(pred_att, gt_att)
+                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
+
+                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+
         
-        # Velocity
-        pred_vel = y_hat[:, :3]
+        # print(x.shape, y.shape, y_hat.shape, '========')
+        # # Velocity
+        # pred_vel = y_hat[:, :3]
 
-        # Attitude
-        if self.args.attitude == 'euler':
-            pred_att = y_hat[:, 3:6]
-            pred_ang_vel = y_hat[:, 6:9]
+        # # Attitude
+        # if self.args.attitude == 'euler':
+        #     pred_att = y_hat[:, 3:6]
+        #     pred_ang_vel = y_hat[:, 6:9]
 
-            gt_att = y[:, 3:6]
-            gt_ang_vel = y[:, 6:9]
+        #     gt_att = y[:, 3:6]
+        #     gt_ang_vel = y[:, 6:9]
 
-            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
 
-        elif self.args.attitude == 'quaternion':
-            pred_att = y_hat[:, 3:7]
-            pred_ang_vel = y_hat[:, 7:10]
+        # elif self.args.attitude == 'quaternion':
+        #     pred_att = y_hat[:, 3:7]
+        #     pred_ang_vel = y_hat[:, 7:10]
 
-            gt_att = y[:, 3:7]
-            gt_ang_vel = y[:, 7:10]
+        #     gt_att = y[:, 3:7]
+        #     gt_ang_vel = y[:, 7:10]
 
-            loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
+        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
 
-        elif self.args.attitude == 'rotation':
-            # pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-            # pred_ang_vel = y_hat[:, 12:15]
+        # elif self.args.attitude == 'rotation':
+        #     pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
+        #     pred_ang_vel = y_hat[:, 12:15]
 
-            # gt_att = y[:, 3:12].reshape(-1, 3, 3)
-            # gt_ang_vel = y[:, 12:15]
+        #     gt_att = y[:, 3:12].reshape(-1, 3, 3)
+        #     gt_ang_vel = y[:, 12:15]
 
-            # loss_vel = self.mse(pred_vel, y[:, :3])
+        #     loss_vel = self.mse(pred_vel, y[:, :3])
 
-            # if self.args.rot_loss:
-            #     loss_att = self.frobenius(pred_att, gt_att)
-            # else:
-            #     loss_att = self.mse(pred_att, gt_att)
+        #     if self.args.rot_loss:
+        #         loss_att = self.frobenius(pred_att, gt_att)
+        #     else:
+        #         loss_att = self.mse(pred_att, gt_att)
             
-            # loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
+        #     loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
 
-            # loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
+        #     loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
 
-            loss = self.mse(y_hat, y)
-
+            
         self.log('valid_loss', loss, prog_bar=True)
+
         return loss
     
     def validation_epoch_end(self, outputs):

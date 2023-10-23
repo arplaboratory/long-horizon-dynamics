@@ -50,6 +50,9 @@ if __name__ == "__main__":
                            'r21', 'r22', 'r23',
                            'r31', 'r32', 'r33',
                            'p', 'q', 'r']
+        # OUTPUT_FEATURES = ['r11', 'r12', 'r13', 
+        #                    'r21', 'r22', 'r23',
+        #                    'r31', 'r32', 'r33']
     elif args.attitude == "euler":
         INPUT_FEATURES = ['u', 'v', 'w',
                           'phi', 'theta', 'psi',

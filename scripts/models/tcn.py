@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class TemporalBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, dropout=0.2):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, dropout=0):
         super(TemporalBlock, self).__init__()
         self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation)
         self.chomp1 = Chomp1d(padding)
@@ -34,7 +34,7 @@ class Chomp1d(nn.Module):
         return x[:, :, :-self.chomp_size].contiguous()
 
 class TemporalConvNet(nn.Module):
-    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.2):
+    def __init__(self, num_inputs, num_channels, kernel_size=2, dropout=0.0):
         super(TemporalConvNet, self).__init__()
         layers = []
         num_levels = len(num_channels)

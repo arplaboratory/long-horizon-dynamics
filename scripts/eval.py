@@ -73,6 +73,11 @@ if __name__ == "__main__":
                            'r12', 'r22', 'r32',
                            'r13', 'r23', 'r33',
                            'p', 'q', 'r']
+
+        # OUTPUT_FEATURES = ['r11', 'r21', 'r31', 
+        #                    'r12', 'r22', 'r32',
+        #                    'r13', 'r23', 'r33']
+        
     elif args.attitude == "euler":
         INPUT_FEATURES = ['u', 'v', 'w',
                           'phi', 'theta', 'psi',
@@ -130,16 +135,20 @@ if __name__ == "__main__":
     batch = tqdm(test_dataloader, total=len(test_dataloader), desc="Testing")
     model.eval()
 
-    if args.history_length == 0:
-        Y = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
-        Y_hat = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
-    else:
-        Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
-        Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
+    # if args.history_length == 0:
+    #     Y = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
+    #     Y_hat = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
+    # else:
+    #     Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
+    #     Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
+
+    Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0] - 4))
+    Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0] - 4))
 
     # Inference speed computation
     with torch.no_grad():
         test_x, test_y = next(iter(test_dataloader))
+
         test_x = test_x.to(args.device).float()
         test_y = test_y.to(args.device).float()
         frequency_hist = []
@@ -154,66 +163,84 @@ if __name__ == "__main__":
                 frequency_hist.append(1. / (starter.elapsed_time(ender) / 1000))
         print("Inference speed (Hz): ", np.mean(frequency_hist))
     
-    # Inference
+    # # Inference
     # with torch.no_grad():
 
-        # for i, (x, y) in enumerate(batch):
-        #     x = x.to(args.device).float()
-        #     y = y.to(args.device).float()
+    #     for i, (x, y) in enumerate(batch):
+    #         x = x.to(args.device).float()
+    #         y = y.to(args.device).float()
 
-        #     y_pred = model(x)
+    #         y_pred = model(x)
 
-        #     Y[i*args.batch_size:(i+1)*args.batch_size, :] = y.cpu().numpy()
-        #     Y_hat[i*args.batch_size:(i+1)*args.batch_size, :] = y_pred.cpu().numpy()
+    #         Y[i*args.batch_size:(i+1)*args.batch_size, :] = y.cpu().numpy()
+    #         Y_hat[i*args.batch_size:(i+1)*args.batch_size, :] = y_pred.cpu().numpy()
     
     # Get initial state, control action and propagate it through the model
+    # with torch.no_grad():
+    #     for i, (x, y) in enumerate(batch):
+            
+    #         x = x.to(args.device).float()
+    #         y = y.to(args.device).float()
+
+    #         for j in range(x.shape[0] - 1):
+
+    #             if args.history_length == 0:
+    #                 if j == 0:
+    #                     y_pred = model(x[j, :].unsqueeze(0))
+    #                     Y[j, :] = y[j, :].cpu().numpy()
+    #                     Y_hat[j, :] = y_pred.cpu().numpy()
+    #                 else:
+
+    #                     # copy y_pred from previous time step
+    #                     x_now = y_pred.clone()
+    #                     u_curr = x[j, -4:].unsqueeze(0)
+                
+    #                     y_pred = model(torch.cat((x_now, u_curr), dim=1))
+
+    #                     # Save y_pred and y at every time step and plot it
+    #                     Y[j, :] = y[j, :].cpu().numpy()
+    #                     Y_hat[j, :] = y_pred.cpu().numpy()
+    #             else:
+    #                 if j == 0:
+    #                     y_pred = model(x[j, :, :].unsqueeze(0))
+    #                     Y[j, :] = y[j, :].cpu().numpy()
+    #                     Y_hat[j, :] = y_pred.cpu().numpy()
+    #                 else:
+
+    #                     # copy y_pred from previous time step
+    #                     x_now = y_pred.clone()
+
+    #                     # update x with the new state x_now 
+    #                     x[j, -1, :x_now.shape[1]] = x_now[0, :]
+    #                     y_pred = model(x[j, :, :].unsqueeze(0))
+
+    #                     # # Save y_pred and y at every time step and plot it
+    #                     Y[j, :] = y[j, :].cpu().numpy()
+    #                     Y_hat[j, :] = y_pred.cpu().numpy()
+
     with torch.no_grad():
         for i, (x, y) in enumerate(batch):
+            
             x = x.to(args.device).float()
             y = y.to(args.device).float()
 
-            for j in range(x.shape[0]):
+            for j in range(x.shape[0] - 1):
 
-                if args.history_length == 0:
-                    if j == 0:
-                        y_pred = model(x[j, :].unsqueeze(0))
-                        Y[j, :] = y[j, :].cpu().numpy()
-                        Y_hat[j, :] = y_pred.cpu().numpy()
-                    else:
-
-                        # copy y_pred from previous time step
-                        x_now = y_pred.clone()
-                        u_curr = x[j, -4:].unsqueeze(0)
-                    
-
-                        y_pred = model(torch.cat((y_pred, u_curr), dim=1))
-
-                        # Save y_pred and y at every time step and plot it
-                        Y[j, :] = y[j, :].cpu().numpy()
-                        Y_hat[j, :] = y_pred.cpu().numpy()
+                if j == 0:
+                    y_pred = model(x[j, :].unsqueeze(0))
+                    Y[j, :] = y[j, :-4, 0].cpu().numpy()
+                    Y_hat[j, :] = y_pred.cpu().numpy()
                 else:
-                    if j == 0:
-                        y_pred = model(x[j, :, :].unsqueeze(0))
-                        Y[j, :] = y[j, :].cpu().numpy()
-                        Y_hat[j, :] = y_pred.cpu().numpy()
-                    else:
 
-                        # copy y_pred from previous time step
-                        x_now = y_pred.clone()
-
-                        # update x with the new state x_now 
-                        x[j, -1, :x_now.shape[1]] = x_now[0, :]
-                        y_pred = model(x[j, :, :].unsqueeze(0))
-
-                        # # Save y_pred and y at every time step and plot it
-                        Y[j, :] = y[j, :].cpu().numpy()
-                        Y_hat[j, :] = y_pred.cpu().numpy()
-
-           
-
+                    # copy y_pred from previous time step
+                    x_now = y_pred.clone()
+                    u_curr = y[j, -4:, 0].unsqueeze(0)
+                    
+                    y_pred = model(torch.cat((x_now, u_curr), dim=1))
+                    Y[j, :] = y[j, :-4, 0].cpu().numpy()
+                    Y_hat[j, :] = y_pred.cpu().numpy()
 
     # Plotting on pdf file
-    
     Y = Y[::50, :]
     Y_hat = Y_hat[::50, :]
 
