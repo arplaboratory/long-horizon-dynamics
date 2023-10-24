@@ -72,7 +72,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         return self.model(x)
     
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.AdamW(
             params=self.parameters(), 
             lr=self.args.learning_rate,
             weight_decay=self.args.weight_decay
@@ -123,12 +123,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             else:
                 
                 x_now = y_hat.clone()
-                u_curr = y[:, -4:, t-1]
+                u_curr = y[:, -4:, t]
 
                 # remove the first state from x, slide the rest and add the new state at the end
                 # x is of shape (batch_size, history_length*input_size)
-                x_curr_history = x[:, 19:]
-                x_curr_history = torch.cat((x_curr_history.clone(), x_now), dim=1)
+                x_curr_history = x[:, 19:].clone()
+                x_curr_history = torch.cat((x_curr_history.clone(), x_now), dim=1).clone()
                 
                 # print(x_now.shape, y_hat.shape, x.shape, torch.cat((x, u_curr), dim=1).shape, u_curr.shape, '========')
                 y_hat = self.model(torch.cat((x_curr_history, u_curr), dim=1))
@@ -229,7 +229,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             else:
                 
                 x_now = y_hat.clone()
-                u_curr = y[:, -4:, t-1]
+                u_curr = y[:, -4:, t]
 
                 # remove the first state from x, slide the rest and add the new state at the end
                 # x is of shape (batch_size, history_length*input_size)

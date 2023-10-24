@@ -31,7 +31,13 @@ import glob
 import time 
 import os
 from tqdm import tqdm
+import h5py
 
+def load_data(hdf5_path, hdf5_file):
+    with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 
+        X = hf['X'][:]
+        Y = hf['Y'][:]
+    return X, Y
 
 if __name__ == "__main__":
 
@@ -42,7 +48,6 @@ if __name__ == "__main__":
     data_path = resources_path + "data/"
     experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
-
 
     args = load_args(experiment_path + "args.txt")
     print(experiment_path)
@@ -88,15 +93,14 @@ if __name__ == "__main__":
                            'p', 'q', 'r']
  
     # create the dataset
-    test_dataset = DynamicsDataset(data_path + "test/", 'test.h5', args)
-    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
+    X, Y = load_data(data_path + "test/", 'test.h5')
 
+    # convert X and Y to tensors
+    X = torch.from_numpy(X).float().to(args.device)
+    Y = torch.from_numpy(Y).float().to(args.device)
    
-
-    # print number of datapoints
-    print("Shape of input:", test_dataset.X_shape)
-    print("Shape of output:", test_dataset.Y_shape)
-
+    print(X.shape, Y.shape)
+ 
     print('Loading model ...')
 
     # Initialize the model
@@ -119,7 +123,10 @@ if __name__ == "__main__":
                     residual=args.residual,
                     dropout=args.dropout)
     elif args.model_type == "mlp":
-        model = MLP(input_size=len(INPUT_FEATURES), 
+        input_size = len(INPUT_FEATURES)
+        if args.history_length > 0:
+            input_size = input_size * args.history_length
+        model = MLP(input_size=input_size, 
                     output_size=len(OUTPUT_FEATURES),
                     num_layers=args.mlp_layers, 
                     dropout=args.dropout)
@@ -131,124 +138,47 @@ if __name__ == "__main__":
                     num_outputs=len(INPUT_FEATURES)-4)
     model.load_state_dict(torch.load(model_path))
     model.to(args.device)
-    
-    batch = tqdm(test_dataloader, total=len(test_dataloader), desc="Testing")
-    model.eval()
 
-    # if args.history_length == 0:
-    #     Y = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
-    #     Y_hat = np.zeros((test_dataset.Y.shape[1], test_dataset.Y.shape[0]))
-    # else:
-    #     Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
-    #     Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0]))
 
-    Y = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0] - 4))
-    Y_hat = np.zeros((test_dataset.X.shape[2], test_dataset.Y.shape[0] - 4))
+    input_shape = (1, args.history_length, len(INPUT_FEATURES))
+    output_shape = (1, len(OUTPUT_FEATURES))
 
-    # Inference speed computation
+    input_tensor = X[0:args.history_length].reshape(input_shape)
+
+
+    Y_plot = np.zeros((X.shape[0] - args.history_length,     Y.shape[1] - 4))
+    Y_hat_plot = np.zeros((X.shape[0] - args.history_length, Y.shape[1] - 4))
+
+    print(Y_plot.shape, Y_hat_plot.shape)
     with torch.no_grad():
-        test_x, test_y = next(iter(test_dataloader))
+       for i in range(args.history_length, X.shape[0]):
+        
+            y_hat = model(input_tensor.flatten()).view(output_shape)           
+            x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
 
-        test_x = test_x.to(args.device).float()
-        test_y = test_y.to(args.device).float()
-        frequency_hist = []
-        for k in range(11):
-            starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
-            starter.record()
-            y_pred = model(test_x)
-            ender.record()
-            # Waits for everything to finish running
-            torch.cuda.synchronize()
-            if k:
-                frequency_hist.append(1. / (starter.elapsed_time(ender) / 1000))
-        print("Inference speed (Hz): ", np.mean(frequency_hist))
-    
-    # # Inference
-    # with torch.no_grad():
+            # print(y_hat[0, 0:3], Y[i, 0:3])
+            input_tensor = torch.cat((input_tensor[:, 1:, :], x_curr.view(1, 1, len(INPUT_FEATURES))), dim=1)
 
-    #     for i, (x, y) in enumerate(batch):
-    #         x = x.to(args.device).float()
-    #         y = y.to(args.device).float()
+            if i < X.shape[0] :
+                Y_plot[i - args.history_length, :] = Y[i, :-4].cpu().numpy()
+                Y_hat_plot[i - args.history_length, :] = y_hat.cpu().numpy()
 
-    #         y_pred = model(x)
+                # # PRINT mse loss
+                mse_loss = nn.MSELoss()
+                loss = mse_loss(y_hat, Y[i, :-4].view(output_shape))
+                print("MSE Loss:", loss.item())
 
-    #         Y[i*args.batch_size:(i+1)*args.batch_size, :] = y.cpu().numpy()
-    #         Y_hat[i*args.batch_size:(i+1)*args.batch_size, :] = y_pred.cpu().numpy()
-    
-    # Get initial state, control action and propagate it through the model
-    # with torch.no_grad():
-    #     for i, (x, y) in enumerate(batch):
-            
-    #         x = x.to(args.device).float()
-    #         y = y.to(args.device).float()
 
-    #         for j in range(x.shape[0] - 1):
-
-    #             if args.history_length == 0:
-    #                 if j == 0:
-    #                     y_pred = model(x[j, :].unsqueeze(0))
-    #                     Y[j, :] = y[j, :].cpu().numpy()
-    #                     Y_hat[j, :] = y_pred.cpu().numpy()
-    #                 else:
-
-    #                     # copy y_pred from previous time step
-    #                     x_now = y_pred.clone()
-    #                     u_curr = x[j, -4:].unsqueeze(0)
-                
-    #                     y_pred = model(torch.cat((x_now, u_curr), dim=1))
-
-    #                     # Save y_pred and y at every time step and plot it
-    #                     Y[j, :] = y[j, :].cpu().numpy()
-    #                     Y_hat[j, :] = y_pred.cpu().numpy()
-    #             else:
-    #                 if j == 0:
-    #                     y_pred = model(x[j, :, :].unsqueeze(0))
-    #                     Y[j, :] = y[j, :].cpu().numpy()
-    #                     Y_hat[j, :] = y_pred.cpu().numpy()
-    #                 else:
-
-    #                     # copy y_pred from previous time step
-    #                     x_now = y_pred.clone()
-
-    #                     # update x with the new state x_now 
-    #                     x[j, -1, :x_now.shape[1]] = x_now[0, :]
-    #                     y_pred = model(x[j, :, :].unsqueeze(0))
-
-    #                     # # Save y_pred and y at every time step and plot it
-    #                     Y[j, :] = y[j, :].cpu().numpy()
-    #                     Y_hat[j, :] = y_pred.cpu().numpy()
-
-    with torch.no_grad():
-        for i, (x, y) in enumerate(batch):
-            
-            x = x.to(args.device).float()
-            y = y.to(args.device).float()
-
-            for j in range(x.shape[0] - 1):
-
-                if j == 0:
-                    y_pred = model(x[j, :].unsqueeze(0))
-                    Y[j, :] = y[j, :-4, 0].cpu().numpy()
-                    Y_hat[j, :] = y_pred.cpu().numpy()
-                else:
-
-                    # copy y_pred from previous time step
-                    x_now = y_pred.clone()
-                    u_curr = y[j, -4:, 0].unsqueeze(0)
-                    
-                    y_pred = model(torch.cat((x_now, u_curr), dim=1))
-                    Y[j, :] = y[j, :-4, 0].cpu().numpy()
-                    Y_hat[j, :] = y_pred.cpu().numpy()
 
     # Plotting on pdf file
-    Y = Y[::50, :]
-    Y_hat = Y_hat[::50, :]
+    Y_plot = Y_plot[::50, :]
+    Y_hat_plot = Y_hat_plot[::50, :]
 
     with PdfPages(experiment_path + "plots/test.pdf") as pdf:
         for i in range(len(OUTPUT_FEATURES)):
             fig = plt.figure()
-            plt.plot(Y[:, i], label="True")
-            plt.plot(Y_hat[:, i], label="Predicted")
+            plt.plot(Y_plot[:, i], label="True")
+            plt.plot(Y_hat_plot[:, i], label="Predicted")
             plt.xlabel("Time (s)")
             plt.ylabel(OUTPUT_FEATURES[i])
             plt.legend()

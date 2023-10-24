@@ -55,7 +55,7 @@ def csv_to_hdf5(args, data_path):
 
     hdf5(data_path + 'train/', 'train.h5',  args.attitude,   args.position, args.history_length, args.unroll_length)
     hdf5(data_path + 'valid/', 'valid.h5',  args.attitude,   args.position, args.history_length, args.unroll_length)
-    hdf5(data_path + 'test/',  'test.h5',   args.attitude,   args.position, args.history_length, args.unroll_length)
+    hdf5_test(data_path + 'test/',  'test.h5',   args.attitude,   args.position, args.history_length)
 
 def hdf5(data_path, hdf5_file, attitude, position, history_length, unroll_length):
 
@@ -199,37 +199,17 @@ def hdf5_test(data_path, hdf5_file, attitude, position, history_length):
                                      attitude_data, angular_velocity_data, 
                                      control_data))
         
-            if history_length == 0:
-                num_samples = data_np.shape[0] - 1
-                # Input features at the current time step
-                X = np.zeros((num_samples, data_np.shape[1]))
+            
+            num_samples = data_np.shape[0] - 1
+            # Input features at the current time step
+            X = np.zeros((num_samples, data_np.shape[1]))
 
-                # Output rotation at the next time step excluding the control inputs
-                Y = np.zeros((num_samples, 9))
-                for i in range(num_samples):
-                    X[i,:] = data_np[i,:]
-                    Y[i,:] = data_np[i+1,3:12]
+            # Output rotation at the next time step excluding the control inputs
+            Y = np.zeros((num_samples, data_np.shape[1]))
+            for i in range(num_samples):
+                X[i,:] = data_np[i,:]
+                Y[i,:] = data_np[i+1, :]
 
-            else:
-                
-                num_samples = data_np.shape[0] - history_length
-
-                if args.model_type == "mlp":
-                    # Input features at the current time step
-                    X = np.zeros((num_samples, history_length * data_np.shape[1]))
-
-                    # Output features at the next time step excluding the control inputs
-                    Y = np.zeros((num_samples, 9))
-                    for i in range(num_samples):
-                        X[i,:] = data_np[i:i+history_length,:].flatten()
-                        Y[i,:] = data_np[i+history_length, 3:12]
-                else:
-                    X = np.zeros((num_samples, history_length, data_np.shape[1]))
-                    Y = np.zeros((num_samples, 9))
-
-                    for i in range(num_samples):
-                        X[i,:,:] = data_np[i:i+history_length,:]
-                        Y[i,:] = data_np[i+history_length, 3:12]
 
             all_X.append(X)
             all_Y.append(Y)
