@@ -55,7 +55,7 @@ def csv_to_hdf5(args, data_path):
 
     hdf5(data_path + 'train/', 'train.h5',  args.attitude,   args.position, args.history_length, args.unroll_length)
     hdf5(data_path + 'valid/', 'valid.h5',  args.attitude,   args.position, args.history_length, args.unroll_length)
-    hdf5_test(data_path + 'test/',  'test.h5',   args.attitude,   args.position, args.history_length)
+    hdf5(data_path + 'test/',  'test.h5',   args.attitude,   args.position, args.history_length, args.unroll_length)
 
 def hdf5(data_path, hdf5_file, attitude, position, history_length, unroll_length):
 
@@ -208,7 +208,7 @@ def hdf5_test(data_path, hdf5_file, attitude, position, history_length):
             Y = np.zeros((num_samples, data_np.shape[1]))
             for i in range(num_samples):
                 X[i,:] = data_np[i,:]
-                Y[i,:] = data_np[i+1, :]
+                Y[i,:] = data_np[i+1, :data_np.shape[1]]
 
 
             all_X.append(X)

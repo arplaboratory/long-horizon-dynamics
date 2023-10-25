@@ -15,9 +15,29 @@ from loss import FrobeniusLoss
 warnings.filterwarnings("ignore")
 
 
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.widgets import Slider
+
+plt.rcParams["figure.figsize"] = (19.20, 10.80)
+font = {"family" : "sans",
+        "weight" : "normal",
+        "size"   : 28}
+matplotlib.rc("font", **font)
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+colors = ["#7d7376","#365282","#e84c53","#edb120"]
+
+OUTPUT_FEATURES = ['u', 'v', 'w',
+                           'r11', 'r21', 'r31', 
+                           'r12', 'r22', 'r32',
+                           'r13', 'r23', 'r33',
+                           'p', 'q', 'r']
+
 class DynamicsLearning(pytorch_lightning.LightningModule):
     def __init__(self, args, resources_path, experiment_path, 
-                 input_size, output_size, num_layers, train_steps = None, 
+                 input_size, output_size, num_layers, sample_data, train_steps = None, 
                  valid_steps = None, pred_steps = None):
         super().__init__()
         self.args = args
@@ -26,6 +46,9 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.train_step = train_steps
         self.valid_step = valid_steps
         self.pred_step = pred_steps
+        self.input_size = input_size
+        self.sample_data = sample_data
+        self.output_size = output_size
 
         if args.model_type == "mlp":
 
@@ -65,7 +88,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.mse = torch.nn.MSELoss()
         self.frobenius = FrobeniusLoss()
         self.best_valid_loss = 1e8
-      
+        self.running_loss_sum = 0
+        self.batch_count = 0
 
     def forward(self, x):
         
@@ -101,102 +125,33 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x, y = train_batch
         x = x.float()
         y = y.float()
-        
+
+        x_current = x
         loss = 0
+
+        common_slice = slice(self.input_size, None)
         for t in range(self.args.unroll_length):
-            if t == 0:
-                y_hat = self.model(x)
-
-                pred_vel = y_hat[:, :3]
-                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-                pred_ang_vel = y_hat[:, 12:15]
-
-                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
-                gt_ang_vel = y[:, 12:15, t]
-
-                loss_vel = self.mse(pred_vel, y[:, :3, t])
-                loss_att = self.mse(pred_att, gt_att)
-                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
-
-                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
-                
-            else:
-                
-                x_now = y_hat.clone()
-                u_curr = y[:, -4:, t]
-
-                # remove the first state from x, slide the rest and add the new state at the end
-                # x is of shape (batch_size, history_length*input_size)
-                x_curr_history = x[:, 19:].clone()
-                x_curr_history = torch.cat((x_curr_history.clone(), x_now), dim=1).clone()
-                
-                # print(x_now.shape, y_hat.shape, x.shape, torch.cat((x, u_curr), dim=1).shape, u_curr.shape, '========')
-                y_hat = self.model(torch.cat((x_curr_history, u_curr), dim=1))
-
-                pred_vel = y_hat[:, :3]
-                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-                pred_ang_vel = y_hat[:, 12:15]
-
-                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
-                gt_ang_vel = y[:, 12:15, t]
-
-                loss_vel = self.mse(pred_vel, y[:, :3, t])
-                loss_att = self.mse(pred_att, gt_att)
-                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
-
-                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
-
-
-        # y_hat = self.model(x)
         
-        # # Velocity
-        # pred_vel = y_hat[:, :3]
-
-        # # Attitude
-        # if self.args.attitude == 'euler':
-        #     pred_att = y_hat[:, 3:6]
-        #     pred_ang_vel = y_hat[:, 6:9]
-
-        #     gt_att = y[:, 3:6]
-        #     gt_ang_vel = y[:, 6:9]
-
-        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
-
-        # elif self.args.attitude == 'quaternion':
-        #     pred_att = y_hat[:, 3:7]
-        #     pred_ang_vel = y_hat[:, 7:10]
-
-        #     gt_att = y[:, 3:7]
-        #     gt_ang_vel = y[:, 7:10]
-
-        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
-
-        # elif self.args.attitude == 'rotation':
-        #     pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-        #     pred_ang_vel = y_hat[:, 12:15]
-
-        #     gt_att = y[:, 3:12].reshape(-1, 3, 3)
-        #     gt_ang_vel = y[:, 12:15]
-
-        #     loss_vel = self.mse(pred_vel, y[:, :3])
-
-        #     if self.args.rot_loss:
-        #         loss_att = self.frobenius(pred_att, gt_att)
-        #     else:
-        #         loss_att = self.mse(pred_att, gt_att)
+            y_hat = self.forward(x_current)
+            label = y[:, :-4, t].reshape(y_hat.shape)
+            loss += self.mse(y_hat, label)
+                
+            if t < self.args.unroll_length - 1:
+                u_curr = y[:, -4:, t]
+                x_current = torch.cat([x[:, common_slice], y_hat, u_curr], dim=1)
             
-        #     loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
+            self.running_loss_sum += loss.item()
+            self.batch_count += 1
+            self.log('train_loss', loss, prog_bar=True)
+            self.log('train_epoch_loss', self.running_loss_sum / self.batch_count, prog_bar=True)
 
-        #     loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
-            
-        self.log('train_loss', loss, prog_bar=True)
         return loss
     
     def test_step(self, test_batch, batch_idx):
         x, y = test_batch
         x = x.float()
         y = y.float()
-        y_hat = self.model(x)
+        y_hat = self.forward(x)
         loss = self.criterion(y_hat, y)
         self.log('test_loss', loss, prog_bar=True)
         return y_hat
@@ -206,99 +161,27 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x = x.float()
         y = y.float()
 
-        
-
+        x_current = x
         loss = 0
+
+        common_slice = slice(self.input_size, None)
         for t in range(self.args.unroll_length):
-            if t == 0:
-                y_hat = self.model(x)
-
-                pred_vel = y_hat[:, :3]
-                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-                pred_ang_vel = y_hat[:, 12:15]
-
-                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
-                gt_ang_vel = y[:, 12:15, t]
-
-                loss_vel = self.mse(pred_vel, y[:, :3, t])
-                loss_att = self.mse(pred_att, gt_att)
-                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
-
-                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
-                
-            else:
-                
-                x_now = y_hat.clone()
-                u_curr = y[:, -4:, t]
-
-                # remove the first state from x, slide the rest and add the new state at the end
-                # x is of shape (batch_size, history_length*input_size)
-                x_curr_history = x[:, 19:]
-                x_curr_history = torch.cat((x_curr_history.clone(), x_now), dim=1)
-                
-                # print(x_now.shape, y_hat.shape, x.shape, torch.cat((x, u_curr), dim=1).shape, u_curr.shape, '========')
-                y_hat = self.model(torch.cat((x_curr_history, u_curr), dim=1))
-
-                pred_vel = y_hat[:, :3]
-                pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-                pred_ang_vel = y_hat[:, 12:15]
-
-                gt_att = y[:, 3:12, t].reshape(-1, 3, 3)
-                gt_ang_vel = y[:, 12:15, t]
-
-                loss_vel = self.mse(pred_vel, y[:, :3, t])
-                loss_att = self.mse(pred_att, gt_att)
-                loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
-
-                loss += self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
-
         
-        # print(x.shape, y.shape, y_hat.shape, '========')
-        # # Velocity
-        # pred_vel = y_hat[:, :3]
-
-        # # Attitude
-        # if self.args.attitude == 'euler':
-        #     pred_att = y_hat[:, 3:6]
-        #     pred_ang_vel = y_hat[:, 6:9]
-
-        #     gt_att = y[:, 3:6]
-        #     gt_ang_vel = y[:, 6:9]
-
-        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
-
-        # elif self.args.attitude == 'quaternion':
-        #     pred_att = y_hat[:, 3:7]
-        #     pred_ang_vel = y_hat[:, 7:10]
-
-        #     gt_att = y[:, 3:7]
-        #     gt_ang_vel = y[:, 7:10]
-
-        #     loss = self.mse(pred_vel, y[:, :3]) + self.mse(pred_att, gt_att) + self.mse(pred_ang_vel, gt_ang_vel)
-
-        # elif self.args.attitude == 'rotation':
-        #     pred_att = y_hat[:, 3:12].reshape(-1, 3, 3)
-        #     pred_ang_vel = y_hat[:, 12:15]
-
-        #     gt_att = y[:, 3:12].reshape(-1, 3, 3)
-        #     gt_ang_vel = y[:, 12:15]
-
-        #     loss_vel = self.mse(pred_vel, y[:, :3])
-
-        #     if self.args.rot_loss:
-        #         loss_att = self.frobenius(pred_att, gt_att)
-        #     else:
-        #         loss_att = self.mse(pred_att, gt_att)
+            y_hat = self.forward(x_current)
+            label = y[:, :-4, t].reshape(y_hat.shape)
+            loss += self.mse(y_hat, label)
+                
+            if t < self.args.unroll_length - 1:
+                u_curr = y[:, -4:, t]
+                x_current = torch.cat([x[:, common_slice], y_hat, u_curr], dim=1)
             
-        #     loss_ang_vel = self.mse(pred_ang_vel, gt_ang_vel)
-
-        #     loss = self.args.vel_loss * loss_vel + self.args.att_loss * loss_att + self.args.ang_vel_loss * loss_ang_vel        
-
+            self.running_loss_sum += loss.item()
+            self.batch_count += 1
+            self.log('valid_loss', loss, prog_bar=True)
+            self.log('valid_epoch_loss', self.running_loss_sum / self.batch_count, prog_bar=True)
             
-        self.log('valid_loss', loss, prog_bar=True)
-
         return loss
-    
+
     def validation_epoch_end(self, outputs):
         valid_loss = torch.stack(outputs).mean()
         if valid_loss < self.best_valid_loss:
@@ -307,7 +190,51 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             print("Best valid loss    %2.4f\n" % self.best_valid_loss)
             torch.save(self.model.state_dict(), self.experiment_path + "checkpoints/model.pth")
 
+    def on_train_epoch_end(self):
+        self.running_loss_sum = 0
+        self.batch_count = 0
+        self.plot_predictions()
     
+    def plot_predictions(self):
 
-    
+        # Plot predictions and ground truth and save to pdf
+
+        self.eval()
+        preds = []
+        with torch.no_grad():
+            x, y = self.sample_data
+            x = x.float().to(self.args.device)
+            y = y.float().to(self.args.device)
+
+            x_current = x
+            common_slice = slice(self.input_size, None)
+            for t in range(self.args.unroll_length):
+                y_hat = self.forward(x_current)
+                preds.append(y_hat)
+                if t < self.args.unroll_length - 1:
+                    u_curr = y[:, -4:, t]
+                    x_current = torch.cat([x[:, common_slice], y_hat, u_curr], dim=1)
+            
+        preds = torch.stack(preds)
+        self.train()
+
+        # Plotting on pdf file
+        preds = preds.cpu().numpy()
+        y = y[:, :-4, :].cpu().numpy()
+
+        preds = preds[:, 0, :]
+        y = y[0, :, :].T
+
+        with PdfPages(self.experiment_path + "plots/predictions.pdf") as pdf:
+            for i in range(len(OUTPUT_FEATURES)):
+                fig = plt.figure()
+                plt.plot(y[:, i], label="True")
+                plt.plot(preds[:, i], label="Predicted")
+                plt.xlabel("Time (s)")
+                plt.ylabel(OUTPUT_FEATURES[i])
+                plt.legend()
+                pdf.savefig(fig)
+                plt.close(fig)
+
+
 

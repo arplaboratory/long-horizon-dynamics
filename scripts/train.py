@@ -75,6 +75,9 @@ if __name__ == "__main__":
     valid_dataset = DynamicsDataset(data_path + "valid/", 'valid.h5', args)
     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
 
+    test_dataset = DynamicsDataset(data_path + "test/", 'test.h5', args)
+    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
+
     # Print shape of input and output
     print("Input shape:", train_dataset.X_shape)
     print("Output shape:", train_dataset.Y_shape)
@@ -84,11 +87,14 @@ if __name__ == "__main__":
                                    save_path = experiment_path + "plots")
     print('Loading model ...')
 
+    sample_data = next(iter(test_dataloader))
+
     # Initialize the model
     model = DynamicsLearning(args, resources_path, experiment_path,
                              input_size=len(INPUT_FEATURES),
                              output_size=len(OUTPUT_FEATURES),
                              num_layers=args.mlp_layers,
+                             sample_data=sample_data,
                              train_steps=train_dataset.num_steps,
                              valid_steps=valid_dataset.num_steps)
     
