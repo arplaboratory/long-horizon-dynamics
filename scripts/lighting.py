@@ -4,6 +4,7 @@ import time
 import warnings
 import torch
 import pytorch_lightning
+import copy
 
 from config import parse_args
 from models.mlp import MLP
@@ -28,6 +29,16 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 colors = ["#7d7376","#365282","#e84c53","#edb120"]
+
+
+
+INPUT_FEATURES = ['u', 'v', 'w',
+                          'r11', 'r12', 'r13', 
+                          'r21', 'r22', 'r23',
+                          'r31', 'r32', 'r33',
+                          'p', 'q', 'r',
+                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+
 
 OUTPUT_FEATURES = ['u', 'v', 'w',
                            'r11', 'r21', 'r31', 
@@ -161,6 +172,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x = x.float()
         y = y.float()
 
+
         x_current = x
         loss = 0
 
@@ -194,47 +206,119 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.running_loss_sum = 0
         self.batch_count = 0
         self.plot_predictions()
-    
+
     def plot_predictions(self):
 
         # Plot predictions and ground truth and save to pdf
+        fig, axes = copy.deepcopy(self.fig), copy.deepcopy(self.axes)
 
         self.eval()
         preds = []
-        with torch.no_grad():
-            x, y = self.sample_data
-            x = x.float().to(self.args.device)
-            y = y.float().to(self.args.device)
 
-            x_current = x
+        with torch.no_grad():
+
+            x_current = self.sample_inputs.reshape(1, -1)
+            y = self.sample_labels
+
             common_slice = slice(self.input_size, None)
             for t in range(self.args.unroll_length):
                 y_hat = self.forward(x_current)
                 preds.append(y_hat)
                 if t < self.args.unroll_length - 1:
                     u_curr = y[:, -4:, t]
-                    x_current = torch.cat([x[:, common_slice], y_hat, u_curr], dim=1)
-            
-        preds = torch.stack(preds)
+                    x_current = torch.cat([x_current[:, common_slice], y_hat, u_curr], dim=1)
+
+        preds = torch.cat(preds, dim=0)
         self.train()
 
-        # Plotting on pdf file
+        # Plot pred states with different colors
         preds = preds.cpu().numpy()
-        y = y[:, :-4, :].cpu().numpy()
 
-        preds = preds[:, 0, :]
-        y = y[0, :, :].T
+        for i in range(preds.shape[1]):
+            row = i // 3
+            col = i % 3
 
-        with PdfPages(self.experiment_path + "plots/predictions.pdf") as pdf:
-            for i in range(len(OUTPUT_FEATURES)):
-                fig = plt.figure()
-                plt.plot(y[:, i], label="True")
-                plt.plot(preds[:, i], label="Predicted")
-                plt.xlabel("Time (s)")
-                plt.ylabel(OUTPUT_FEATURES[i])
-                plt.legend()
-                pdf.savefig(fig)
-                plt.close(fig)
+            ax = axes[row, col]
+
+            # Make sure while plotting the predictions, the history is not plotted and the prediciton are shifted to the right by history length
+            ax.plot(range(self.args.history_length, self.args.history_length + self.args.unroll_length), preds[:, i], color=colors[3])
+            
+            #ax.plot(preds[:, i], color=colors[3])
+        
+
+        plt.tight_layout()  # Adjust subplot layout
+        plt.savefig(self.experiment_path + "plots/predictions.png")
+    
+    def on_train_start(self):
+
+        # Plot the history of states and unrolled labels and save to png. Plots must be aesthetically pleasing
+
+        fig, axes = plt.subplots(5, 3, figsize=(20, 20))
+        fig.suptitle("Input and Label States", fontsize=16)
+
+        fig.subplots_adjust(hspace=0.8, wspace=0.8)
+
+        x, y = self.sample_data
+
+        input_states = x[0].reshape(self.args.history_length, -1)[:, :-4]
+        label_states = y[0][:-4, :].T
+
+        # Concatenate the input and label states
+        states = torch.cat((input_states, label_states), dim=0)
+
+
+        time_values = [i for i in range(states.shape[0])]
+
+        for i in range(self.input_size - 4):
+            row = i // 3
+            col = i % 3
+
+            ax = axes[row, col]
+
+            # Make sure the history and labels are plotted with different colors
+            ax.plot(time_values[:self.args.history_length+1], states[:self.args.history_length+1, i], color=colors[2])
+            ax.plot(time_values[self.args.history_length:], states[self.args.history_length:, i], color=colors[1])
+
+            # ax.plot(states[:, i], color=colors[2])
+
+            # Add y-axis labels for all subplots
+            ax.set_ylabel(INPUT_FEATURES[i])
+
+            if row == 4:
+                ax.set_xlabel("Time (s)")
+
+            # Calculate the range for the y-axis based on the minimum and maximum values
+            min_value = states[:, i].min().item()
+            max_value = states[:, i].max().item()
+            y_range = max_value - min_value
+            padding = 0.8 * y_range  # 30% padding
+
+            # Set y-axis limits with padding
+            ax.set_ylim(min_value - padding, max_value + padding)
+
+        # Create two common legends with different labels and colors
+        legend_history =    plt.Line2D([0], [0], color=colors[2], label='History')
+        legend_gt_rollout = plt.Line2D([0], [0], color=colors[1], label='Ground Truth Rollout')
+        legend_prediction = plt.Line2D([0], [0], color=colors[3], label='Prediction')
+
+        # Add the legends to the figure
+        fig.legend(handles=[legend_history, legend_gt_rollout, legend_prediction], loc="upper right")
+
+        # Adjust the legend's position relative to the rest of the plot
+        fig.canvas.draw()
+
+        # Set x-axis labels for all subplots
+        for i in range(5):
+            for j in range(3):
+                axes[i, j].set_xticks(range(0, len(time_values), len(time_values)//5))
+                axes[i, j].set_xticklabels(range(0, len(time_values), len(time_values)//5))
+
+        plt.tight_layout()  # Adjust subplot layout
+
+        self.fig, self.axes = fig, axes
+        self.sample_inputs = self.sample_data[0].float().to(self.args.device)[0:1,]
+        self.sample_labels = self.sample_data[1].float().to(self.args.device)[0:1,]
 
 
 
+    

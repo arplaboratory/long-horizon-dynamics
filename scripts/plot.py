@@ -17,6 +17,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
+HEADERS_TO_PLOT = ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"]
+
 def plot_histograms_from_csv(folder_path, headers_to_plot):
     # Initialize empty lists to store data from all CSV files
     all_data = {header: [] for header in headers_to_plot}
@@ -57,6 +60,36 @@ def plot_histograms_from_csv(folder_path, headers_to_plot):
     plt.savefig(folder_path + 'histograms.png')
 
 
+def generate_lag_plots(file_path):
+
+
+    data = pd.read_csv(file_path)
+
+    # Set a custom color palette for Seaborn (blue)
+    sns.set_palette("Reds")
+
+    # Create subplots based on the number of headers to plot
+    num_plots = len(HEADERS_TO_PLOT)
+
+    # Generate lag plots for the specified headers using the aggregated data
+    for i, header in enumerate(HEADERS_TO_PLOT):
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        sns.scatterplot(x=data[header].shift(1), y=data[header], ax=axes[0])
+        axes[0].set_title(f'{header} Lag Plot (1)')
+        axes[0].set_xlabel(f'{header} (t-1)')
+        axes[0].set_ylabel(f'{header} (t)')
+        axes[0].grid(True, linestyle='--', alpha=0.6)
+
+        sns.scatterplot(x=data[header].shift(2), y=data[header], ax=axes[1])
+        axes[1].set_title(f'{header} Lag Plot (2)')
+        axes[1].set_xlabel(f'{header} (t-2)')
+        axes[1].set_ylabel(f'{header} (t)')
+        axes[1].grid(True, linestyle='--', alpha=0.6)
+
+        # save the figure
+        plt.savefig(file_path + f'{header}_lag_plots.png')
+        plt.close()
+
 
 
 if __name__ == "__main__":
@@ -72,6 +105,10 @@ if __name__ == "__main__":
     train_path = data_path + "train/"
     valid_path = data_path + "valid/"
 
+    file_path = train_path + 'dataset_sinusoid_4.csv'
+
     headers_to_plot = ['u', 'v', 'w', 'phi', 'theta', 'psi', 'p', 'q', 'r', 'delta_e', 'delta_a', 'delta_r', 'delta_t']
 
-    plot_histograms_from_csv(train_path, headers_to_plot)
+    # plot_histograms_from_csv(train_path, headers_to_plot)
+
+    generate_lag_plots(file_path)

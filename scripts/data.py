@@ -56,7 +56,7 @@ class DynamicsDataset(Dataset):
         else:
             # x = self.X[:, idx]
             # Flatten the input data
-            x = self.X[:, :, idx].flatten()
+            x = self.X[:, :, idx].flatten('F')
             y = self.Y[:, :, idx]
             
         if self.augmentations and random.random() < 0.8:

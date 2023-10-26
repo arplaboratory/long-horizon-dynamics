@@ -10,7 +10,7 @@ def parse_args():
     parser.add_argument('--num_devices',           type=int,      default=1)
     parser.add_argument('-e', '--epochs',          type=int,      default=50000)
     parser.add_argument('-b', '--batch_size',      type=int,      default=16384)
-    parser.add_argument('--dropout',               type=float,    default=0.0)
+    parser.add_argument('--dropout',               type=float,    default=0.2)
     parser.add_argument('--weight_decay',          type=float,    default=0.0)
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.001)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=False)
@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--std_percentage',        type=float,    default=0.1)
     parser.add_argument('--model_type',            type=str,      default='mlp')
     parser.add_argument('--history_length',        type=int,      default=5)
-    parser.add_argument('--unroll_length',         type=int,      default=10)
+    parser.add_argument('--unroll_length',         type=int,      default=5)
     parser.add_argument('--use_history',           type=bool,     default=False) 
     parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--attitude',              type=str,      default='rotation')
@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument('--ang_vel_loss',          type=float,    default=1)
     parser.add_argument('--rot_loss',              type=bool,     default=False)
     # MLP Model
-    parser.add_argument('--mlp_layers',            type=list,     default=[512, 256, 128])
+    parser.add_argument('--mlp_layers',            type=list,     default=[256, 128, 64])
     
     # LSTM Model
     parser.add_argument('--hidden_size',           type=int,      default=64)

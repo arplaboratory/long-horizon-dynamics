@@ -22,13 +22,13 @@ class MLP(nn.Module):
                 layers.append(nn.SELU())
                 # batch normalization
                 # layers.append(nn.BatchNorm1d(self.num_layers[i]))
-                # layers.append(nn.Dropout(self.dropout))
+                layers.append(nn.Dropout(self.dropout))
             else:
                 layers.append(nn.Linear(self.num_layers[i-1], self.num_layers[i]))
                 layers.append(nn.SELU())
                 # batch normalization
                 # layers.append(nn.BatchNorm1d(self.num_layers[i]))
-                # layers.append(nn.Dropout(self.dropout))
+                layers.append(nn.Dropout(self.dropout))
 
         layers.append(nn.Linear(self.num_layers[i], self.output_size))
         # layers.append(nn.SELU())

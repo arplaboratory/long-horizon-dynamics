@@ -98,7 +98,6 @@ def hdf5(data_path, hdf5_file, attitude, position, history_length, unroll_length
                 data_np = np.hstack((velocity_data,
                                      attitude_data, angular_velocity_data, 
                                      control_data))
-        
             if history_length == 0:
                 num_samples = data_np.shape[0] - 1
                 # Input features at the current time step
@@ -125,14 +124,14 @@ def hdf5(data_path, hdf5_file, attitude, position, history_length, unroll_length
 
                     for i in range(num_samples):
                         X[i,:,:] = data_np[i:i+history_length,:]
-                        Y[i,:,:] = data_np[i+history_length: i+history_length+unroll_length,:data_np.shape[1]]
+                        Y[i,:,:] = data_np[i+history_length: i+history_length+unroll_length,:]
                 else:
                     X = np.zeros((num_samples, history_length, data_np.shape[1]))
                     Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
 
                     for i in range(num_samples):
                         X[i,:,:] = data_np[i:i+history_length,:]
-                        Y[i,:,:] = data_np[i+history_length: i+history_length+unroll_length,:data_np.shape[1]]
+                        Y[i,:,:] = data_np[i+history_length: i+history_length+unroll_length,:]
 
             all_X.append(X)
             all_Y.append(Y)
@@ -154,6 +153,8 @@ def hdf5(data_path, hdf5_file, attitude, position, history_length, unroll_length
     with h5py.File(data_path + hdf5_file, 'w') as hf:
         hf.create_dataset("X", data=X)
         hf.create_dataset("Y", data=Y)
+
+    print(X.shape, Y.shape)
 
     return X, Y
 
@@ -258,6 +259,6 @@ if __name__ == "__main__":
     print(X.shape, Y.shape)
 
     # print first row of data
-    print(X[:,0])
-    print("---------------------")
-    print(Y[:,0])
+    print(X[:, :, 0])
+    print("-----------------------------")
+    print(Y[:, :, 0])
