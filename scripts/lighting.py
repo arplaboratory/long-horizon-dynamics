@@ -39,7 +39,7 @@ colors = ["#7d7376","#365282","#e84c53","#edb120"]
 OUTPUT_FEATURES = {
     "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
     "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
-    "rotation": ["u", "v", "w", "r11", "r21", "r31", "r12", "r22", "r32", "p", "q", "r"],
+    "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"]
 }
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
@@ -269,9 +269,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
             # Make sure while plotting the predictions, the history is not plotted and the prediciton are shifted to the right by history length
             ax.plot(range(self.args.history_length, self.args.history_length + self.args.unroll_length), preds[:, i], color=colors[3])
-            
-            #ax.plot(preds[:, i], color=colors[3])
-        
+                    
 
         plt.tight_layout()  # Adjust subplot layout
         plt.savefig(self.experiment_path + "plots/predictions.png")
@@ -297,7 +295,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         time_values = [i for i in range(states.shape[0])]
 
-        for i in range(self.input_size - 4):
+        for i in range(self.output_size):
             row = i // 3
             col = i % 3
 
@@ -310,6 +308,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             # ax.plot(states[:, i], color=colors[2])
 
             # Add y-axis labels for all subplots
+            print(OUTPUT_FEATURES[self.args.attitude])
             ax.set_ylabel(OUTPUT_FEATURES[self.args.attitude][i])
 
             if row == 4:
