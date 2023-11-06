@@ -24,13 +24,9 @@ def parse_args():
     parser.add_argument('--model_type',            type=str,      default='lstm')
     parser.add_argument('--history_length',        type=int,      default=5)
     parser.add_argument('--unroll_length',         type=int,      default=2)
-    parser.add_argument('--use_history',           type=bool,     default=False) 
     parser.add_argument('--augmentation',          type=bool,     default=True)
     parser.add_argument('--attitude',              type=str,      default='euler')
-    parser.add_argument('--vel_loss',              type=float,    default=1)
-    parser.add_argument('--att_loss',              type=float,    default=1)
-    parser.add_argument('--ang_vel_loss',          type=float,    default=1)
-    parser.add_argument('--rot_loss',              type=bool,     default=False)
+
     # MLP Model
     parser.add_argument('--mlp_layers',            type=list,     default=[256, 128, 64])
     
