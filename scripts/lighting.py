@@ -11,6 +11,7 @@ from models.mlp import MLP
 from models.lstm import LSTM
 from models.cnn import CNNModel
 from models.tcn import TCN
+from models.lstm_ensemble import LSTMEnsemble
 
 from loss import FrobeniusLoss
 warnings.filterwarnings("ignore")
@@ -70,6 +71,14 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                               hidden_size=args.hidden_size,
                               num_layers=args.num_layers,
                               seq_length=args.history_length)
+            
+        elif args.model_type == "lstm_ensemble":
+            self.model = LSTMEnsemble(num_classes=output_size,
+                                      input_size=input_size,
+                                      hidden_size=args.hidden_size,
+                                      num_layers=args.num_layers,
+                                      seq_length=args.history_length,
+                                      ensemble_size=args.ensemble_size)
             
         elif args.model_type == "cnn":
             self.model = CNNModel(input_size=input_size,
