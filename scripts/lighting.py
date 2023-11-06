@@ -12,6 +12,7 @@ from models.lstm import LSTM
 from models.cnn import CNNModel
 from models.tcn import TCN
 from models.lstm_ensemble import LSTMEnsemble
+from models.tcn_ensemble import TCNEnsemble
 
 from loss import FrobeniusLoss
 warnings.filterwarnings("ignore")
@@ -95,6 +96,14 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                              kernel_size=args.kernel_size,
                              dropout=args.dropout,
                              num_outputs=input_size-4)
+            
+        elif args.model_type == "tcn_ensemble":
+            self.model = TCNEnsemble(num_inputs=input_size,
+                                     num_channels=args.num_channels,
+                                     kernel_size=args.kernel_size,
+                                     dropout=args.dropout,
+                                     num_outputs=input_size-4,
+                                     ensemble_size=args.ensemble_size)
         # else print error warning
         else:
             print("Error: Model type not found!")
