@@ -36,10 +36,10 @@ colors = ["#7d7376","#365282","#e84c53","#edb120"]
 
 
 
-INPUT_FEATURES = {
-    "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r", "delta_e", "delta_a", "delta_r", "delta_t"],
-    "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r", "delta_e", "delta_a", "delta_r", "delta_t"],
-    "rotation": ["u", "v", "w", "r11", "r21", "r31", "r12", "r22", "r32", "p", "q", "r", "delta_e", "delta_a", "delta_r", "delta_t"],
+OUTPUT_FEATURES = {
+    "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
+    "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
+    "rotation": ["u", "v", "w", "r11", "r21", "r31", "r12", "r22", "r32", "p", "q", "r"],
 }
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
@@ -310,7 +310,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             # ax.plot(states[:, i], color=colors[2])
 
             # Add y-axis labels for all subplots
-            ax.set_ylabel(INPUT_FEATURES[self.args.attitude][i])
+            ax.set_ylabel(OUTPUT_FEATURES[self.args.attitude][i])
 
             if row == 4:
                 ax.set_xlabel("Time (s)")
