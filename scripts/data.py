@@ -3,17 +3,16 @@ import numpy as np
 import pandas as pd
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-import csv
 import random
 import scipy.linalg as linalg
 import h5py
+from utils import Euler2Quaternion, Quaternion2Euler, Euler2Rotation, Quaternion2Rotation, Rotation2Quaternion
 
 class DynamicsDataset(Dataset):
     def __init__(self, data_path, hdf5_file, args):
 
         self.normalize = args.normalize
         self.X, self.Y = self.load_data(data_path, hdf5_file)
-
         self.history_length = args.history_length
         self.unroll_length = args.unroll_length
         self.batch_size = args.batch_size
@@ -21,17 +20,14 @@ class DynamicsDataset(Dataset):
         self.augmentations = args.augmentation
         self.std_percentage = args.std_percentage
         self.attitude = args.attitude
+        self.model_type = args.model_type
+        
         
         if self.history_length == 0:
-            assert self.X.shape[1] == self.Y.shape[1]
-            # assert self.X.shape[0] == self.Y.shape[0] + 4
+            assert self.X.shape[1] == self.Y.shape[2]
+            assert self.X.shape[0] == self.Y.shape[0]  + 4
             self.X_shape = self.X.shape
             self.Y_shape = self.Y.shape
-        # else:
-        #     assert self.X.shape[2] == self.Y.shape[1]
-        #     assert self.X.shape[0] == self.Y.shape[0] + 4
-        #     self.X_shape = self.X.shape
-        #     self.Y_shape = self.Y.shape
 
         else:
             assert self.X.shape[2] == self.Y.shape[2]
@@ -39,13 +35,9 @@ class DynamicsDataset(Dataset):
             self.X_shape = self.X.shape
             self.Y_shape = self.Y.shape
 
-
     def __len__(self):
 
-        if self.history_length == 0:
-            return self.X.shape[1]
-        else:
-            return self.X.shape[2] 
+        return self.X.shape[2]
 
     def __getitem__(self, idx):
 
@@ -54,9 +46,11 @@ class DynamicsDataset(Dataset):
             y = self.Y[:, idx]
 
         else:
-            # x = self.X[:, idx]
-            # Flatten the input data
-            x = self.X[:, :, idx].flatten('F')
+           
+            if self.model_type == 'mlp':
+                x = self.X[:, :, idx].flatten('F')
+            else:
+                x = self.X[:, :, idx]
             y = self.Y[:, :, idx]
             
         if self.augmentations and random.random() < 0.8:
@@ -65,7 +59,7 @@ class DynamicsDataset(Dataset):
         return x.T, y
         
     def load_data(self, hdf5_path, hdf5_file):
-        with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 
+        with h5py.File(os.path.join(hdf5_path, hdf5_file), 'r') as hf: 
             X = hf['X'][:]
             Y = hf['Y'][:]
         return X.T, Y.T
@@ -177,92 +171,3 @@ class DynamicsDataset(Dataset):
                         # Add noise to the input feature
                         x[feature_index, t] += np.random.normal(0, noise_std)
         return x
-
-
-def Quaternion2Euler(quaternion):
-    """
-    converts a quaternion attitude to an euler angle attitude
-    :param quaternion: the quaternion to be converted to euler angles in a np.matrix
-    :return: the euler angle equivalent (phi, theta, psi) in a np.array
-    """
-    e0 = quaternion.item(0)
-    e1 = quaternion.item(1)
-    e2 = quaternion.item(2)
-    e3 = quaternion.item(3)
-    phi = np.arctan2(2.0 * (e0 * e1 + e2 * e3), e0**2.0 + e3**2.0 - e1**2.0 - e2**2.0)
-    theta = np.arcsin(2.0 * (e0 * e2 - e1 * e3))
-    psi = np.arctan2(2.0 * (e0 * e3 + e1 * e2), e0**2.0 + e1**2.0 - e2**2.0 - e3**2.0)
-
-    return phi, theta, psi
-
-def Rotation2Quaternion(R):
-    """
-    converts a rotation matrix to a unit quaternion
-    """
-    r11 = R[0][0]
-    r12 = R[0][1]
-    r13 = R[0][2]
-    r21 = R[1][0]
-    r22 = R[1][1]
-    r23 = R[1][2]
-    r31 = R[2][0]
-    r32 = R[2][1]
-    r33 = R[2][2]
-
-    tmp=r11+r22+r33
-    if tmp>0:
-        e0 = 0.5*np.sqrt(1+tmp)
-    else:
-        e0 = 0.5*np.sqrt(((r12-r21)**2+(r13-r31)**2+(r23-r32)**2)/(3-tmp))
-
-    tmp=r11-r22-r33
-    if tmp>0:
-        e1 = 0.5*np.sqrt(1+tmp)
-    else:
-        e1 = 0.5*np.sqrt(((r12+r21)**2+(r13+r31)**2+(r23-r32)**2)/(3-tmp))
-
-    tmp=-r11+r22-r33
-    if tmp>0:
-        e2 = 0.5*np.sqrt(1+tmp)
-    else:
-        e2 = 0.5*np.sqrt(((r12+r21)**2+(r13+r31)**2+(r23+r32)**2)/(3-tmp))
-
-    tmp=-r11+-22+r33
-    if tmp>0:
-        e3 = 0.5*np.sqrt(1+tmp)
-    else:
-        e3 = 0.5*np.sqrt(((r12-r21)**2+(r13+r31)**2+(r23+r32)**2)/(3-tmp))
-
-    return np.array([[e0], [e1], [e2], [e3]])
-
-
-def Euler2Quaternion(phi, theta, psi):
-    """
-    Converts an euler angle attitude to a quaternian attitude
-    :param euler: Euler angle attitude in a np.matrix(phi, theta, psi)
-    :return: Quaternian attitude in np.array(e0, e1, e2, e3)
-    """
-
-    e0 = np.cos(psi/2.0) * np.cos(theta/2.0) * np.cos(phi/2.0) + np.sin(psi/2.0) * np.sin(theta/2.0) * np.sin(phi/2.0)
-    e1 = np.cos(psi/2.0) * np.cos(theta/2.0) * np.sin(phi/2.0) - np.sin(psi/2.0) * np.sin(theta/2.0) * np.cos(phi/2.0)
-    e2 = np.cos(psi/2.0) * np.sin(theta/2.0) * np.cos(phi/2.0) + np.sin(psi/2.0) * np.cos(theta/2.0) * np.sin(phi/2.0)
-    e3 = np.sin(psi/2.0) * np.cos(theta/2.0) * np.cos(phi/2.0) - np.cos(psi/2.0) * np.sin(theta/2.0) * np.sin(phi/2.0)
-
-    return np.array([[e0],[e1],[e2],[e3]])
-
-    
-def Quaternion2Rotation(quaternion):
-    """
-    converts a quaternion attitude to a rotation matrix
-    """
-    e0 = quaternion.item(0)
-    e1 = quaternion.item(1)
-    e2 = quaternion.item(2)
-    e3 = quaternion.item(3)
-
-    R = np.array([[e1 ** 2.0 + e0 ** 2.0 - e2 ** 2.0 - e3 ** 2.0, 2.0 * (e1 * e2 - e3 * e0), 2.0 * (e1 * e3 + e2 * e0)],
-                  [2.0 * (e1 * e2 + e3 * e0), e2 ** 2.0 + e0 ** 2.0 - e1 ** 2.0 - e3 ** 2.0, 2.0 * (e2 * e3 - e1 * e0)],
-                  [2.0 * (e1 * e3 - e2 * e0), 2.0 * (e2 * e3 + e1 * e0), e3 ** 2.0 + e0 ** 2.0 - e1 ** 2.0 - e2 ** 2.0]])
-    R = R/linalg.det(R)
-
-    return R

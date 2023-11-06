@@ -1,108 +1,77 @@
 from torch.utils.data import DataLoader
-
 from utils import check_folder_paths, plot_data
 from config import parse_args, save_args
 from data import DynamicsDataset
 import pytorch_lightning
 from lighting import DynamicsLearning
 
-
 import sys
-import time 
+import time
 import os
+
+INPUT_FEATURES = {
+    "euler": 13,
+    "quaternion": 14,
+    "rotation": 19,
+}
 
 
 if __name__ == "__main__":
-
     # parse arguments
     args = parse_args()
 
-    # Set global paths 
+    # Set global paths
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/"
     experiment_path = resources_path + "experiments/" + time.strftime("%Y%m%d-%H%M%S") + "_" + str(args.run_id) + "/"
 
-    check_folder_paths([experiment_path + "checkpoints",
-                        experiment_path + "plots"])
-    
-    # save arguments
-    save_args(args, experiment_path + "args.txt")
+    check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots")])
 
-    # set input and output features based on attitude type from args
-    if args.attitude == "quaternion":
-        INPUT_FEATURES = ['u', 'v', 'w',
-                          'e0', 'e1', 'e2', 'e3',
-                          'p', 'q', 'r',
-                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
-        OUTPUT_FEATURES = ['u', 'v', 'w',
-                           'e0', 'e1', 'e2', 'e3', 
-                           'p', 'q', 'r']
-    elif args.attitude == "rotation":
-        INPUT_FEATURES = ['u', 'v', 'w',
-                          'r11', 'r12', 'r13', 
-                          'r21', 'r22', 'r23',
-                          'r31', 'r32', 'r33',
-                          'p', 'q', 'r',
-                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
-        OUTPUT_FEATURES = ['u', 'v', 'w',
-                           'r11', 'r12', 'r13', 
-                           'r21', 'r22', 'r23',
-                           'r31', 'r32', 'r33',
-                           'p', 'q', 'r']
-        # OUTPUT_FEATURES = ['r11', 'r12', 'r13', 
-        #                    'r21', 'r22', 'r23',
-        #                    'r31', 'r32', 'r33']
-    elif args.attitude == "euler":
-        INPUT_FEATURES = ['u', 'v', 'w',
-                          'phi', 'theta', 'psi',
-                          'p', 'q', 'r',
-                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
-        OUTPUT_FEATURES = ['u', 'v', 'w',
-                           'phi', 'theta', 'psi',
-                           'p', 'q', 'r']
-        
-    
-    # device
+    # save arguments
+    save_args(args, os.path.join(experiment_path, "args.txt"))
+
+
+    # Device
     args.device = "cuda:0"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
     print("Training model on cuda:" + str(args.gpu_id) + "\n")
 
-    # create the dataset
-    train_dataset = DynamicsDataset(data_path + "train/", 'train.h5', args)
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
+    # Create datasets and dataloaders
+    datasets = {}
+    dataloaders = {}
+    dataset_names = ["train", "valid", "test"]
+    for dataset_name in dataset_names:
+        dataset = DynamicsDataset(os.path.join(data_path, dataset_name), f"{dataset_name}.h5", args)
+        dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
+        datasets[dataset_name] = dataset
+        dataloaders[dataset_name] = dataloader
+        print(f"{dataset_name.capitalize()} shape: {dataset.X_shape}")
 
-    valid_dataset = DynamicsDataset(data_path + "valid/", 'valid.h5', args)
-    valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
-
-    test_dataset = DynamicsDataset(data_path + "test/", 'test.h5', args)
-    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
-
-    # Print shape of input and output
-    print("Input shape:", train_dataset.X_shape)
-    print("Output shape:", train_dataset.Y_shape)
-
-    if args.plot == True:
-        plot_data(train_dataset.X, features = INPUT_FEATURES, 
-                                   save_path = experiment_path + "plots")
+    # Load model
     print('Loading model ...')
-
-    sample_data = next(iter(test_dataloader))
+    sample_data = next(iter(dataloaders["test"]))
 
     # Initialize the model
-    model = DynamicsLearning(args, resources_path, experiment_path,
-                             input_size=len(INPUT_FEATURES),
-                             output_size=len(OUTPUT_FEATURES),
-                             num_layers=args.mlp_layers,
-                             sample_data=sample_data,
-                             train_steps=train_dataset.num_steps,
-                             valid_steps=valid_dataset.num_steps)
-    
-    trainer = pytorch_lightning.Trainer(accelerator="gpu", devices=args.num_devices, 
-                                        max_epochs=args.epochs,val_check_interval=args.val_freq, 
-                                        default_root_dir=experiment_path)
-    trainer.fit(model, train_dataloader, valid_dataloader)  
+    model = DynamicsLearning(
+        args,
+        resources_path,
+        experiment_path,
+        input_size=INPUT_FEATURES[args.attitude],
+        output_size=INPUT_FEATURES[args.attitude]-4,
+        num_layers=args.mlp_layers,
+        sample_data=sample_data,
+        train_steps=datasets["train"].num_steps,
+        valid_steps=datasets["valid"].num_steps
+    )
 
+    # Train the model
+    trainer = pytorch_lightning.Trainer(
+        accelerator="gpu",
+        devices=args.num_devices,
+        max_epochs=args.epochs,
+        val_check_interval=args.val_freq,
+        default_root_dir=experiment_path
+    )
 
-    
-    
+    trainer.fit(model, dataloaders["train"], dataloaders["valid"])

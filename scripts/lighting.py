@@ -28,23 +28,25 @@ font = {"family" : "sans",
 matplotlib.rc("font", **font)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+plt.switch_backend('agg')
+
 colors = ["#7d7376","#365282","#e84c53","#edb120"]
 
 
 
 INPUT_FEATURES = ['u', 'v', 'w',
-                          'r11', 'r12', 'r13', 
-                          'r21', 'r22', 'r23',
-                          'r31', 'r32', 'r33',
-                          'p', 'q', 'r',
-                          'delta_e', 'delta_a', 'delta_r', 'delta_t']
+                  'r11', 'r12', 'r13', 
+                  'r21', 'r22', 'r23',
+                  'r31', 'r32', 'r33',
+                  'p', 'q', 'r',
+                  'delta_e', 'delta_a', 'delta_r', 'delta_t']
 
 
 OUTPUT_FEATURES = ['u', 'v', 'w',
-                           'r11', 'r21', 'r31', 
-                           'r12', 'r22', 'r32',
-                           'r13', 'r23', 'r33',
-                           'p', 'q', 'r']
+                   'r11', 'r21', 'r31', 
+                   'r12', 'r22', 'r32',
+                   'r13', 'r23', 'r33',
+                   'p', 'q', 'r']
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
     def __init__(self, args, resources_path, experiment_path, 
@@ -71,12 +73,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                     dropout=args.dropout)
             
         elif args.model_type == "lstm":
-            self.model = LSTM(input_size=input_size,
+            self.model = LSTM(num_classes=output_size,
+                              input_size=input_size,
                               hidden_size=args.hidden_size,
                               num_layers=args.num_layers,
-                              output_size=output_size,
-                              history_length=args.history_length,
-                              dropout=args.dropout)
+                              seq_length=args.history_length)
+            
         elif args.model_type == "cnn":
             self.model = CNNModel(input_size=input_size,
                                   num_filters=args.num_filters,
@@ -138,25 +140,27 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         y = y.float()
 
         x_current = x
-        loss = 0
+        batch_loss = 0.0
 
-        common_slice = slice(self.input_size, None)
+        # common_slice = slice(self.input_size, None)
         for t in range(self.args.unroll_length):
-        
             y_hat = self.forward(x_current)
+
             label = y[:, :-4, t].reshape(y_hat.shape)
-            loss += self.mse(y_hat, label)
+            batch_loss += self.mse(y_hat, label)
                 
             if t < self.args.unroll_length - 1:
                 u_curr = y[:, -4:, t]
-                x_current = torch.cat([x[:, common_slice], y_hat, u_curr], dim=1)
+                x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
             
-            self.running_loss_sum += loss.item()
-            self.batch_count += 1
-            self.log('train_loss', loss, prog_bar=True)
-            self.log('train_epoch_loss', self.running_loss_sum / self.batch_count, prog_bar=True)
+        self.running_loss_sum += batch_loss.item() / self.args.unroll_length
+        self.batch_count += 1
+        self.log('train_loss', batch_loss, prog_bar=True)
+        self.log('train_epoch_loss', self.running_loss_sum / self.batch_count, prog_bar=True)
+            
+        del y_hat, label
 
-        return loss
+        return batch_loss
     
     def test_step(self, test_batch, batch_idx):
         x, y = test_batch
@@ -172,27 +176,29 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x = x.float()
         y = y.float()
 
-
         x_current = x
-        loss = 0
+        batch_loss = 0.0
 
-        common_slice = slice(self.input_size, None)
+        # common_slice = slice(self.input_size, None)
         for t in range(self.args.unroll_length):
-        
             y_hat = self.forward(x_current)
+
             label = y[:, :-4, t].reshape(y_hat.shape)
-            loss += self.mse(y_hat, label)
+            batch_loss += self.mse(y_hat, label)
                 
             if t < self.args.unroll_length - 1:
                 u_curr = y[:, -4:, t]
-                x_current = torch.cat([x[:, common_slice], y_hat, u_curr], dim=1)
+                x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
             
-            self.running_loss_sum += loss.item()
-            self.batch_count += 1
-            self.log('valid_loss', loss, prog_bar=True)
-            self.log('valid_epoch_loss', self.running_loss_sum / self.batch_count, prog_bar=True)
+        self.running_loss_sum += batch_loss.item() / self.args.unroll_length
+        self.batch_count += 1
+        self.log('valid_loss', batch_loss, prog_bar=True)
+        self.log('valid_epoch_loss', self.running_loss_sum / self.batch_count, prog_bar=True)
+
+        del y_hat, label
+        
             
-        return loss
+        return batch_loss
 
     def validation_epoch_end(self, outputs):
         valid_loss = torch.stack(outputs).mean()
@@ -202,10 +208,18 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             print("Best valid loss    %2.4f\n" % self.best_valid_loss)
             torch.save(self.model.state_dict(), self.experiment_path + "checkpoints/model.pth")
 
+        # Release memory after evaluation
+        torch.cuda.empty_cache()
+
     def on_train_epoch_end(self):
         self.running_loss_sum = 0
         self.batch_count = 0
-        self.plot_predictions()
+
+        # plot every 10 epochs
+        if self.current_epoch % self.args.plot_freq == 0:
+            self.plot_predictions()
+
+        torch.cuda.empty_cache()
 
     def plot_predictions(self):
 
@@ -217,16 +231,23 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         with torch.no_grad():
 
-            x_current = self.sample_inputs.reshape(1, -1)
+            x_current = self.sample_inputs
             y = self.sample_labels
 
-            common_slice = slice(self.input_size, None)
+            # common_slice = slice(self.input_size, None)
             for t in range(self.args.unroll_length):
+                
+            
                 y_hat = self.forward(x_current)
+
                 preds.append(y_hat)
+
                 if t < self.args.unroll_length - 1:
                     u_curr = y[:, -4:, t]
-                    x_current = torch.cat([x_current[:, common_slice], y_hat, u_curr], dim=1)
+                    x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
+            
+                # Release y_hat from memory
+                del y_hat
 
         preds = torch.cat(preds, dim=0)
         self.train()
@@ -248,6 +269,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         plt.tight_layout()  # Adjust subplot layout
         plt.savefig(self.experiment_path + "plots/predictions.png")
+        plt.close()
     
     def on_train_start(self):
 
