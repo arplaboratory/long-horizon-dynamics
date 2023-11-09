@@ -68,7 +68,7 @@ if __name__ == "__main__":
     # Train the model
     trainer = pytorch_lightning.Trainer(
         accelerator="gpu",
-        devices=args.num_devices,
+        devices="auto",
         max_epochs=args.epochs,
         val_check_interval=args.val_freq,
         default_root_dir=experiment_path
