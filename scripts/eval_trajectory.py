@@ -114,20 +114,37 @@ if __name__ == "__main__":
 
     model.load_state_dict(torch.load(model_path))
     model.to(args.device)
-    
-    model.eval()
 
-    # Inference
+
+    input_shape = (1, args.history_length, len(OUTPUT_FEATURES[args.attitude])+4)
+    output_shape = (1, len(OUTPUT_FEATURES[args.attitude]))
+
+    
+    input_tensor = X[0:args.history_length].reshape(input_shape)
+    print(input_tensor.shape)
+
+
+    Y_plot = np.zeros((X.shape[0] - args.history_length,     Y.shape[1] - 4))
+    Y_hat_plot = np.zeros((X.shape[0] - args.history_length, Y.shape[1] - 4))
+
+    print(Y_plot.shape, Y_hat_plot.shape)
+    trajectory_loss = []
     with torch.no_grad():
-        output = model(X)
-        loss = torch.mean((output - Y[:, 0, :-4])**2)
-        print("Test Loss: ", loss.item())
+       for i in range(args.history_length, X.shape[0]):
+        
+            y_hat = model(input_tensor).view(output_shape)           
+            x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
 
+            # print(y_hat[0, 0:3], Y[i, 0:3])
+            input_tensor = torch.cat((input_tensor[:, 1:, :], x_curr.view(1, 1, len(OUTPUT_FEATURES[args.attitude])+4)), dim=1)
 
-    
-    
-   
+            if i < X.shape[0] :
+                Y_plot[i - args.history_length, :] = Y[i, :-4].cpu().numpy()
+                Y_hat_plot[i - args.history_length, :] = y_hat.cpu().numpy()
 
+                # # PRINT mse loss
+                mse_loss = nn.MSELoss()
+                loss = mse_loss(y_hat, Y[i, :-4].view(output_shape))
+                trajectory_loss.append(loss.item())
 
-    
-    
+    print("MSE Loss: ", np.mean(trajectory_loss))
