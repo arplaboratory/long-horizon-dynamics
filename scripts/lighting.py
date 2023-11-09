@@ -144,7 +144,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         x, y = train_batch
         x = x.float()
         y = y.float()
-
+        
         x_current = x
         batch_loss = 0.0
 
@@ -308,7 +308,6 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             # ax.plot(states[:, i], color=colors[2])
 
             # Add y-axis labels for all subplots
-            print(OUTPUT_FEATURES[self.args.attitude])
             ax.set_ylabel(OUTPUT_FEATURES[self.args.attitude][i])
 
             if row == 4:
