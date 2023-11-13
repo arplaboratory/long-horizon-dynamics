@@ -62,9 +62,9 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             if args.history_length > 0:
                 input_size = input_size * args.history_length
             self.model = MLP(input_size=input_size, 
-                    output_size=output_size,
-                    num_layers=num_layers, 
-                    dropout=args.dropout)
+                             output_size=output_size,
+                             num_layers=num_layers, 
+                             dropout=args.dropout)
             
         elif args.model_type == "lstm":
             self.model = LSTM(num_classes=output_size,
@@ -157,7 +157,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 
             if t < self.args.unroll_length - 1:
                 u_curr = y[:, -4:, t]
-                x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
+                if self.args.model_type == "mlp":
+                    x_current = torch.cat([x_current[:, self.input_size:], torch.cat([y_hat, u_curr], dim=1)], dim=1)
+                else:
+                    x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
             
         self.running_loss_sum += batch_loss.item() / self.args.unroll_length
         self.batch_count += 1
@@ -189,12 +192,18 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         for t in range(self.args.unroll_length):
             y_hat = self.forward(x_current)
 
+
             label = y[:, :-4, t].reshape(y_hat.shape)
             batch_loss += self.mse(y_hat, label)
                 
             if t < self.args.unroll_length - 1:
                 u_curr = y[:, -4:, t]
-                x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
+                if self.args.model_type == "mlp":
+                    x_current = torch.cat([x_current[:, self.input_size:], torch.cat([y_hat, u_curr], dim=1)], dim=1)
+                else:
+                    x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
+                    
+               
             
         self.running_loss_sum += batch_loss.item() / self.args.unroll_length
         self.batch_count += 1
@@ -250,7 +259,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
                 if t < self.args.unroll_length - 1:
                     u_curr = y[:, -4:, t]
-                    x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
+                    if self.args.model_type == "mlp":
+                        x_current = torch.cat([x_current[:, self.input_size:], torch.cat([y_hat, u_curr], dim=1)], dim=1)
+                    else:
+                        x_current = torch.cat([x_current[:, 1:, :], torch.cat([y_hat, u_curr], dim=1).unsqueeze(dim=1)], dim=1)
             
                 # Release y_hat from memory
                 del y_hat

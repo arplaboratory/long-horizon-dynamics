@@ -12,8 +12,8 @@ def csv_to_hdf5(args, data_path):
 
     hdf5(data_path + 'train/', 'train.h5',  args.attitude,  args.history_length, args.unroll_length)
     hdf5(data_path + 'valid/', 'valid.h5',  args.attitude,  args.history_length, args.unroll_length)
-    hdf5(data_path + 'test/',  'test.h5',   args.attitude,  args.history_length, args.unroll_length)
-    # hdf5_test(data_path + 'test/',  'test.h5',   args.attitude,  args.history_length)
+    # hdf5(data_path + 'test/',  'test.h5',   args.attitude,  args.history_length, args.unroll_length)
+    hdf5_test(data_path + 'test/',  'test.h5',   args.attitude,  args.history_length)
 
 
 def hdf5(data_path, hdf5_file, attitude, history_length, unroll_length):

@@ -72,6 +72,10 @@ if __name__ == "__main__":
     # convert X and Y to tensors
     X = torch.from_numpy(X).float().to(args.device)
     Y = torch.from_numpy(Y).float().to(args.device)
+
+    if args.model_type == "mlp":
+        X = X.flatten(1)
+    
    
     print(X.shape, Y.shape)
  
@@ -93,10 +97,10 @@ if __name__ == "__main__":
                         dropout=args.dropout,
                         num_outputs=len(OUTPUT_FEATURES[args.attitude]))
     elif args.model_type == "mlp":
-        model = MLP(input_size=len(OUTPUT_FEATURES[args.attitude])+4,
+        model = MLP(input_size=(len(OUTPUT_FEATURES[args.attitude])+4)*args.history_length,
+                    output_size=len(OUTPUT_FEATURES[args.attitude]),
                     num_layers=args.mlp_layers,
-                    dropout=args.dropout,
-                    num_outputs=len(OUTPUT_FEATURES[args.attitude]))
+                    dropout=args.dropout)
         
     elif args.model_type == "tcn":
         model = TCN(num_inputs=len(OUTPUT_FEATURES[args.attitude])+4,
@@ -119,24 +123,23 @@ if __name__ == "__main__":
     input_shape = (1, args.history_length, len(OUTPUT_FEATURES[args.attitude])+4)
     output_shape = (1, len(OUTPUT_FEATURES[args.attitude]))
 
-    
-    input_tensor = X[0:args.history_length].reshape(input_shape)
-    print(input_tensor.shape)
+    input_tensor = X[0:args.history_length].reshape(input_shape)  
 
 
     Y_plot = np.zeros((X.shape[0] - args.history_length,     Y.shape[1] - 4))
     Y_hat_plot = np.zeros((X.shape[0] - args.history_length, Y.shape[1] - 4))
 
-    print(Y_plot.shape, Y_hat_plot.shape)
+    # print(Y_plot.shape, Y_hat_plot.shape)
     trajectory_loss = []
     with torch.no_grad():
        for i in range(args.history_length, X.shape[0]):
         
-            y_hat = model(input_tensor).view(output_shape)           
+            y_hat = model(input_tensor.flatten(1)).view(output_shape)           
             x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
 
-            # print(y_hat[0, 0:3], Y[i, 0:3])
             input_tensor = torch.cat((input_tensor[:, 1:, :], x_curr.view(1, 1, len(OUTPUT_FEATURES[args.attitude])+4)), dim=1)
+
+
 
             if i < X.shape[0] :
                 Y_plot[i - args.history_length, :] = Y[i, :-4].cpu().numpy()

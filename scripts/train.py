@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # Create datasets and dataloaders
     datasets = {}
     dataloaders = {}
-    dataset_names = ["train", "valid", "test"]
+    dataset_names = ["train", "valid"]
     for dataset_name in dataset_names:
         dataset = DynamicsDataset(os.path.join(data_path, dataset_name), f"{dataset_name}.h5", args)
         dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     # Load model
     print('Loading model ...')
-    sample_data = next(iter(dataloaders["test"]))
+    sample_data = next(iter(dataloaders["valid"]))
 
     # Initialize the model
     model = DynamicsLearning(

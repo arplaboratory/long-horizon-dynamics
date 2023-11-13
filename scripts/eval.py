@@ -72,6 +72,9 @@ if __name__ == "__main__":
     # convert X and Y to tensors
     X = torch.from_numpy(X).float().to(args.device)
     Y = torch.from_numpy(Y).float().to(args.device)
+
+    if args.model_type == "mlp":
+        X = X.flatten(1)
    
     print(X.shape, Y.shape)
  
@@ -93,10 +96,10 @@ if __name__ == "__main__":
                         dropout=args.dropout,
                         num_outputs=len(OUTPUT_FEATURES[args.attitude]))
     elif args.model_type == "mlp":
-        model = MLP(input_size=len(OUTPUT_FEATURES[args.attitude])+4,
+        model = MLP(input_size=(len(OUTPUT_FEATURES[args.attitude])+4)*args.history_length,
+                    output_size=len(OUTPUT_FEATURES[args.attitude]),
                     num_layers=args.mlp_layers,
-                    dropout=args.dropout,
-                    num_outputs=len(OUTPUT_FEATURES[args.attitude]))
+                    dropout=args.dropout)
         
     elif args.model_type == "tcn":
         model = TCN(num_inputs=len(OUTPUT_FEATURES[args.attitude])+4,
@@ -119,6 +122,7 @@ if __name__ == "__main__":
 
     # Inference
     with torch.no_grad():
+
         output = model(X)
         loss = torch.mean((output - Y[:, 0, :-4])**2)
         print("Test Loss: ", loss.item())
