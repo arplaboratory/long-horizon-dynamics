@@ -50,12 +50,15 @@ def load_data(hdf5_path, hdf5_file):
 
 if __name__ == "__main__":
 
-    
+    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231114-104817_1/'
     # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/"
-    experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
+    if set_experiment is None:
+        experiment_path = resources_path + "experiments/" + args.experiment_name + "/"
+    else:
+        experiment_path = set_experiment 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
 
     args = load_args(experiment_path + "args.txt")
@@ -134,7 +137,7 @@ if __name__ == "__main__":
     with torch.no_grad():
        for i in range(args.history_length, X.shape[0]):
         
-            y_hat = model(input_tensor.flatten(1)).view(output_shape)           
+            y_hat = model(input_tensor).view(output_shape)           
             x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
 
             input_tensor = torch.cat((input_tensor[:, 1:, :], x_curr.view(1, 1, len(OUTPUT_FEATURES[args.attitude])+4)), dim=1)
@@ -151,3 +154,17 @@ if __name__ == "__main__":
                 trajectory_loss.append(loss.item())
 
     print("MSE Loss: ", np.mean(trajectory_loss))
+    
+    Y_plot = Y_plot[::50, :]
+    Y_hat_plot = Y_hat_plot[::50, :]
+
+    with PdfPages(experiment_path + "plots/test.pdf") as pdf:
+        for i in range(len(OUTPUT_FEATURES[args.attitude])):
+            fig = plt.figure()
+            plt.plot(Y_plot[:, i], label="True")
+            plt.plot(Y_hat_plot[:, i], label="Predicted")
+            plt.xlabel("Time (s)")
+            plt.ylabel(OUTPUT_FEATURES[args.attitude][i])
+            plt.legend()
+            pdf.savefig(fig)
+            plt.close(fig)
