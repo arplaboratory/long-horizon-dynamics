@@ -53,7 +53,7 @@ class DynamicsDataset(Dataset):
                 x = self.X[:, :, idx]
             y = self.Y[:, :, idx]
             
-        if self.augmentations and random.random() < 0.8:
+        if self.augmentations and random.random() < 0.5:
             x = self.augment(x)
         
         return x.T, y

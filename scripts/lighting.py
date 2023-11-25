@@ -37,10 +37,11 @@ colors = ["#7d7376","#365282","#e84c53","#edb120"]
 
 
 OUTPUT_FEATURES = {
-    "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
-    "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
-    "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"]
+    "euler": ["ax", "ay", "az", "phi", "theta", "psi", "ang_acc_x", "ang_acc_y", "ang_acc_z"],
+    "quaternion": ["ax", "ay", "az", 'ang_acc_x', "q0", "q1", "q2", "q3", "ang_acc_x", "ang_acc_y", "ang_acc_z"],
+    "rotation": ["ax", "ay", "az", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "ang_acc_x", "ang_acc_y", "ang_acc_z"]
 }
+
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
     def __init__(self, args, resources_path, experiment_path, 

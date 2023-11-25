@@ -120,13 +120,46 @@ if __name__ == "__main__":
     
     model.eval()
 
+
     # Inference
     with torch.no_grad():
 
         output = model(X)
-        loss = torch.mean((output - Y[:, 0, :-4])**2)
-        print("Test Loss: ", loss.item())
 
+        # print(((torch.var((output - Y[:, 0, :-4])**2, dim=0))))
+        loss = torch.mean((output - Y[:, 0, :-4])**2)
+
+    #     print("Prediction Mean: ", loss.item())
+    #      # print variance
+    #     print("Prediction Variance: ", torch.mean(torch.var(output - Y[:, 0, :-4], dim=0), dim=0).item())
+
+    #     # Printing mean and variance of difference between the predicted state and the current state
+    #     # print mean
+    #     print((Y[:, 0, :-4] - X[:, 9, :-4]).shape)
+        print("Mean: ", torch.var((Y[:, 0, :-4] - X[:, 9, :-4])**2, dim=0))
+
+    #     # print variance
+    #     print("Variance: ", torch.mean(torch.var(Y[:, 0, :-4] - X[:, 9, :-4], dim=0)).item())
+
+       
+    
+    
+    # output = output.detach().cpu().numpy()
+    # Y = Y.detach().cpu().numpy()
+
+    # with PdfPages(experiment_path + "plots/test.pdf") as pdf:
+    #     for i in range(len(OUTPUT_FEATURES[args.attitude])):
+    #         fig = plt.figure()
+    #         plt.plot(Y[:, 0, i], label="True")
+    #         plt.plot(output[:, i], label="Predicted")
+    #         plt.xlabel("Time (s)")
+    #         plt.ylabel(OUTPUT_FEATURES[args.attitude][i])
+    #         plt.legend()
+    #         pdf.savefig(fig)
+    #         plt.close(fig)
+            
+
+            
 
     
     

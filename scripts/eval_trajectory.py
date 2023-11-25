@@ -131,6 +131,7 @@ if __name__ == "__main__":
 
     Y_plot = np.zeros((X.shape[0] - args.history_length,     Y.shape[1] - 4))
     Y_hat_plot = np.zeros((X.shape[0] - args.history_length, Y.shape[1] - 4))
+    mse_loss = nn.MSELoss()
 
     # print(Y_plot.shape, Y_hat_plot.shape)
     trajectory_loss = []
@@ -148,13 +149,23 @@ if __name__ == "__main__":
                 Y_plot[i - args.history_length, :] = Y[i, :-4].cpu().numpy()
                 Y_hat_plot[i - args.history_length, :] = y_hat.cpu().numpy()
 
-                # # PRINT mse loss
-                mse_loss = nn.MSELoss()
+                # PRINT mse loss
                 loss = mse_loss(y_hat, Y[i, :-4].view(output_shape))
                 trajectory_loss.append(loss.item())
 
-    print("MSE Loss: ", np.mean(trajectory_loss))
+    # print("MSE Loss: ", np.mean(trajectory_loss))
+    # # Print max and min values of the trajectory loss
+    # print("Max Loss: ", np.max(trajectory_loss))
+    # print("Min Loss: ", np.min(trajectory_loss))
     
+    # Compute MSE from Y and Y_hat
+    mse = np.mean((Y_plot - Y_hat_plot)**2, axis=0)
+    print("MSE: ", np.mean(mse))
+    print("MSE standard deviation: ", np.std(mse))
+    print("MSE max: ", np.max(mse))
+    print("MSE min: ", np.min(mse))
+
+
     Y_plot = Y_plot[::50, :]
     Y_hat_plot = Y_hat_plot[::50, :]
 

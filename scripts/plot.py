@@ -18,7 +18,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-HEADERS_TO_PLOT = ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"]
+# HEADERS_TO_PLOT = ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"]
+
+# HEADERS_TO_PLOT = ["px","py","pz","vx","vy","vz","qx","qy","qz","qw","wx","wy","wz"]
+HEADERS_TO_PLOT = ["vx","vy","vz"]
 
 def plot_histograms_from_csv(folder_path, headers_to_plot):
     # Initialize empty lists to store data from all CSV files
@@ -107,8 +110,10 @@ if __name__ == "__main__":
 
     file_path = train_path + 'dataset_sinusoid_4.csv'
 
-    headers_to_plot = ['u', 'v', 'w', 'phi', 'theta', 'psi', 'p', 'q', 'r', 'delta_e', 'delta_a', 'delta_r', 'delta_t']
+    csv_path = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/data/rosbags/'
 
-    # plot_histograms_from_csv(train_path, headers_to_plot)
+    headers_to_plot = ["wx","wy","wz"]
 
-    generate_lag_plots(file_path)
+    plot_histograms_from_csv(csv_path, headers_to_plot)
+
+    # generate_lag_plots(file_path)
