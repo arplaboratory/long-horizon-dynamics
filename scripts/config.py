@@ -23,9 +23,9 @@ def parse_args():
     parser.add_argument('--std_percentage',        type=float,    default=0.1)
     parser.add_argument('--model_type',            type=str,      default='tcn')
     parser.add_argument('--history_length',        type=int,      default=10)
-    parser.add_argument('--unroll_length',         type=int,      default=10)
+    parser.add_argument('--unroll_length',         type=int,      default=1)
     parser.add_argument('--ensemble_size',         type=int,      default=5)
-    parser.add_argument('--augmentation',          type=bool,     default=True)
+    parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--attitude',              type=str,      default='rotation')
 
     # MLP Model

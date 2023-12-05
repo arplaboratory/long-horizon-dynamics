@@ -60,8 +60,8 @@ class DynamicsDataset(Dataset):
         
     def load_data(self, hdf5_path, hdf5_file):
         with h5py.File(os.path.join(hdf5_path, hdf5_file), 'r') as hf: 
-            X = hf['X'][:]
-            Y = hf['Y'][:]
+            X = hf['inputs'][:]
+            Y = hf['outputs'][:]
         return X.T, Y.T
     
     def augment(self, x):
