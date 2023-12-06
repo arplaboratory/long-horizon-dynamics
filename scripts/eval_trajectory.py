@@ -38,19 +38,19 @@ import h5py
 OUTPUT_FEATURES = {
     "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
     "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
-    "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"]
+    "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"],
 }
 
 
 def load_data(hdf5_path, hdf5_file):
     with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 
-        X = hf['X'][:]
-        Y = hf['Y'][:]
+        X = hf['inputs'][:]
+        Y = hf['outputs'][:]
     return X, Y
 
 if __name__ == "__main__":
 
-    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231114-104817_1/'
+    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231206-170703_1/'
     # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
@@ -110,7 +110,7 @@ if __name__ == "__main__":
                     num_channels=args.num_channels,
                     kernel_size=args.kernel_size,
                     dropout=args.dropout,
-                    num_outputs=len(OUTPUT_FEATURES[args.attitude]))    
+                    num_outputs=len(OUTPUT_FEATURES[args.attitude]))     
     elif args.model_type == "tcn_ensemble":
         model = TCNEnsemble(num_inputs=len(OUTPUT_FEATURES[args.attitude])+4,
                             num_channels=args.num_channels,
@@ -122,54 +122,46 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(model_path))
     model.to(args.device)
 
-
     input_shape = (1, args.history_length, len(OUTPUT_FEATURES[args.attitude])+4)
     output_shape = (1, len(OUTPUT_FEATURES[args.attitude]))
 
     input_tensor = X[0:args.history_length].reshape(input_shape)  
 
-
-    Y_plot = np.zeros((X.shape[0] - args.history_length,     Y.shape[1] - 4))
-    Y_hat_plot = np.zeros((X.shape[0] - args.history_length, Y.shape[1] - 4))
-    mse_loss = nn.MSELoss()
+    Y_plot = np.zeros((X.shape[0] - args.history_length,     len(OUTPUT_FEATURES[args.attitude])))
+    Y_hat_plot = np.zeros((X.shape[0] - args.history_length, len(OUTPUT_FEATURES[args.attitude])))
 
     # print(Y_plot.shape, Y_hat_plot.shape)
     trajectory_loss = []
     with torch.no_grad():
-       for i in range(args.history_length, X.shape[0]):
+       for i in range(args.history_length -1, X.shape[0]):
         
-            y_hat = model(input_tensor).view(output_shape)           
+            y_hat = model(input_tensor).view(output_shape) 
+         
+            # Add current input to the output 
+            y_hat = input_tensor[:, -1, :-4] + y_hat
+       
+
             x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
 
             input_tensor = torch.cat((input_tensor[:, 1:, :], x_curr.view(1, 1, len(OUTPUT_FEATURES[args.attitude])+4)), dim=1)
 
-
-
             if i < X.shape[0] :
+
                 Y_plot[i - args.history_length, :] = Y[i, :-4].cpu().numpy()
                 Y_hat_plot[i - args.history_length, :] = y_hat.cpu().numpy()
 
-                # PRINT mse loss
+                # # PRINT mse loss
+                mse_loss = nn.MSELoss()
                 loss = mse_loss(y_hat, Y[i, :-4].view(output_shape))
                 trajectory_loss.append(loss.item())
+                print(loss.item())
 
-    # print("MSE Loss: ", np.mean(trajectory_loss))
-    # # Print max and min values of the trajectory loss
-    # print("Max Loss: ", np.max(trajectory_loss))
-    # print("Min Loss: ", np.min(trajectory_loss))
+    print("MSE Loss: ", np.mean(trajectory_loss))
     
-    # Compute MSE from Y and Y_hat
-    mse = np.mean((Y_plot - Y_hat_plot)**2, axis=0)
-    print("MSE: ", np.mean(mse))
-    print("MSE standard deviation: ", np.std(mse))
-    print("MSE max: ", np.max(mse))
-    print("MSE min: ", np.min(mse))
-
-
     Y_plot = Y_plot[::50, :]
     Y_hat_plot = Y_hat_plot[::50, :]
 
-    with PdfPages(experiment_path + "plots/test.pdf") as pdf:
+    with PdfPages(experiment_path + "plots/eval_trajectory.pdf") as pdf:
         for i in range(len(OUTPUT_FEATURES[args.attitude])):
             fig = plt.figure()
             plt.plot(Y_plot[:, i], label="True")
