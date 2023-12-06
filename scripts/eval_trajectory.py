@@ -136,6 +136,29 @@ if __name__ == "__main__":
        for i in range(args.history_length -1, X.shape[0]):
         
             y_hat = model(input_tensor).view(output_shape) 
+
+            # Reortho-normalize rotation matrix using SVD
+            R_column1 = [y_hat[0][3], y_hat[0][6], y_hat[0][9]]
+            R_column2 = [y_hat[0][4], y_hat[0][7], y_hat[0][10]]
+            R_column3 = [y_hat[0][5], y_hat[0][8], y_hat[0][11]]
+
+            # SVD 
+            U, S, V = torch.svd(torch.tensor([R_column1, R_column2, R_column3]))
+
+            # Reconstruct rotation matrix
+            R = torch.mm(U, V.t())
+
+            # Reconstruct output
+            y_hat[0][3] = R[0][0]
+            y_hat[0][4] = R[0][1]
+            y_hat[0][5] = R[0][2]
+            y_hat[0][6] = R[1][0]
+            y_hat[0][7] = R[1][1]
+            y_hat[0][8] = R[1][2]
+            y_hat[0][9] = R[2][0]
+            y_hat[0][10] = R[2][1]
+            y_hat[0][11] = R[2][2]
+            
          
             # Add current input to the output 
             y_hat = input_tensor[:, -1, :-4] + y_hat
@@ -154,7 +177,6 @@ if __name__ == "__main__":
                 mse_loss = nn.MSELoss()
                 loss = mse_loss(y_hat, Y[i, :-4].view(output_shape))
                 trajectory_loss.append(loss.item())
-                print(loss.item())
 
     print("MSE Loss: ", np.mean(trajectory_loss))
     
