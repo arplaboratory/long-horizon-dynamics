@@ -133,9 +133,10 @@ if __name__ == "__main__":
         loss = torch.mean((output - Y[:, 0, :-4])**2)
         print("Test Loss: ", loss.item())
 
-        # print(Y_velocity[-100:])
-        # print(output[-100:])
+        # print variance
+        print("Variance: ", torch.var(output - Y[:, 0, :-4]).item())
 
+    
         # Plot predictions and ground truth
         Y_plot = Y[:, 0, :-4].detach().cpu().float().numpy()
         Y_hat_plot = output.detach().cpu().float().numpy()
