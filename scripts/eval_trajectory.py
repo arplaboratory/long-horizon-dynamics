@@ -178,10 +178,27 @@ if __name__ == "__main__":
                 loss = mse_loss(y_hat, Y[i, :-4].view(output_shape))
                 trajectory_loss.append(loss.item())
 
-    print("MSE Loss: ", np.mean(trajectory_loss))
+    mean_loss = np.mean(trajectory_loss)
+    print("MSE Loss: ", mean_loss)
     
     Y_plot = Y_plot[::50, :]
     Y_hat_plot = Y_hat_plot[::50, :]
+
+
+    # Plot and Save MSE loss and mean MSE loss
+    fig = plt.figure()
+    plt.plot(trajectory_loss)
+    # PLot mean loss
+    plt.plot(np.ones(len(trajectory_loss))*mean_loss, label="Mean Loss")
+    plt.legend()
+    # print to precision 3 of mean and varience to plot top left
+    plt.text(0, 0.95, f"Mean Loss: {mean_loss:.3f}", transform=plt.gca().transAxes)
+    plt.text(0, 0.90, f"Variance: {np.var(trajectory_loss):.3f}", transform=plt.gca().transAxes)
+
+    plt.xlabel("No. of recursive predictions")
+    plt.ylabel("MSE Loss")
+    plt.title("MSE Loss")
+    plt.savefig(experiment_path + "plots/eval_mse_loss.pdf")
 
     with PdfPages(experiment_path + "plots/eval_trajectory.pdf") as pdf:
         for i in range(len(OUTPUT_FEATURES[args.attitude])):
