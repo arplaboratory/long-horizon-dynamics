@@ -39,6 +39,7 @@ OUTPUT_FEATURES = {
     "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
     "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
     "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"],
+    "test": ["u (m/s)", "v (m/s)", "w (m/s)", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p (rad/s)", "q (rad/s)", "r (rad/s)"],
 }
 
 
@@ -67,7 +68,7 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
  
     # create the dataset
-    X, Y = load_data(data_path + "test/", 'test.h5')
+    X, Y = load_data(data_path + "test/", 'test_eval.h5')
    
     # convert X and Y to tensors
     X = torch.from_numpy(X).float().to(args.device)
@@ -148,16 +149,16 @@ if __name__ == "__main__":
         Y_plot = Y_plot[::50, :]
         Y_hat_plot = Y_hat_plot[::50, :]
 
-        with PdfPages(experiment_path + "plots/eval.pdf") as pdf:
-            for i in range(len(OUTPUT_FEATURES[args.attitude])):
-                fig = plt.figure()
-                plt.plot(Y_plot[:, i], label="True")
-                plt.plot(Y_hat_plot[:, i], label="Predicted")
-                plt.xlabel("Time (s)")
-                plt.ylabel(OUTPUT_FEATURES[args.attitude][i])
-                plt.legend()
-                pdf.savefig(fig)
-                plt.close(fig)
+        # Generate aesthetic plots and save them individually
+        for i in range(15):
+            fig = plt.figure(figsize=(16, 16), dpi=400)
+            plt.plot(Y_plot[:, i], label="Ground Truth", color=colors[1])
+            plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2])
+            plt.legend()
+            plt.xlabel("No. of recursive predictions")
+            plt.ylabel(OUTPUT_FEATURES["test"][i])
+            plt.savefig(experiment_path + "plots/testset_" + OUTPUT_FEATURES[args.attitude][i] + ".png")
+            plt.close()
 
 
     

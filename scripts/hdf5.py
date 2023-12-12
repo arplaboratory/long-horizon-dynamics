@@ -12,8 +12,8 @@ def csv_to_hdf5(args, data_path):
 
     hdf5(data_path, 'train/', 'train.h5',  args.attitude,  args.history_length, args.unroll_length)
     hdf5(data_path, 'valid/', 'valid.h5',  args.attitude,  args.history_length, args.unroll_length, train=False)
-    hdf5(data_path, 'test/',  'test.h5',   args.attitude,  args.history_length, args.unroll_length, train=False)
-    # hdf5_test(data_path, 'test/',  'test.h5',   args.attitude,  args.history_length)
+    hdf5(data_path, 'test/',  'test_eval.h5',   args.attitude,  args.history_length, args.unroll_length, train=False)
+    hdf5_test(data_path, 'test/',  'test_trajectory.h5',   args.attitude,  args.history_length)
 
 
 def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_length, train=True):
@@ -72,7 +72,8 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
                     Y[i,:,:] = data_np[i+history_length: i+history_length+unroll_length,:data_np.shape[1]]
 
                 # output should be the difference between the unrolled states and the current state
-                Y[:, :, :-4] = Y[:, :, :-4] - X[:, -1, :].reshape((num_samples, 1, data_np.shape[1])).repeat(unroll_length, axis=1)[:, :, :-4]
+                if args.delta:
+                    Y[:, :, :-4] = Y[:, :, :-4] - X[:, -1, :].reshape((num_samples, 1, data_np.shape[1])).repeat(unroll_length, axis=1)[:, :, :-4]
 
                
             all_X.append(X)
@@ -81,15 +82,19 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
     X = np.concatenate(all_X, axis=0)
     Y = np.concatenate(all_Y, axis=0)
 
-    
-    # if normalize save mean and std for each feature in the training set and normalize the data
+    # Normalize the output 
     if args.normalize:
-        mean = np.mean(X, axis=0)
-        std = np.std(X, axis=0)
+        if train == True:
+            mean = np.mean(Y, axis=0)
+            std = np.std(Y, axis=0)
 
-        np.save(data_path + 'mean.npy', mean)
-        np.save(data_path + 'std.npy', std)
-        X = (X - mean) / std
+            np.save(data_path + folder_name + 'mean_train.npy', mean)
+            np.save(data_path + folder_name + 'std_train.npy', std)
+        else:
+            mean = np.load(data_path + 'train/' + 'mean_train.npy')
+            std = np.load(data_path + 'train/' + 'std_train.npy')
+
+        Y = (Y - mean) / std
         
     # save the data
     # Create the HDF5 file and datasets for inputs and outputs
@@ -217,10 +222,10 @@ if __name__ == "__main__":
     # parse arguments
     
 
-    X, Y = load_hdf5(data_path + 'test/', 'test.h5')
+    X, Y = load_hdf5(data_path + 'test/', 'test_eval.h5')
     print(X.shape, Y.shape)
 
-    # print first row of data
-    # print(X[:3, -1, -100:])
-    # print("-----------------------------")
-    print(Y[:3, -100:])
+    print(Y[:, 0, -10:])
+
+    X, Y = load_hdf5(data_path + 'test/', 'test_trajectory.h5')
+    print(X.shape, Y.shape)

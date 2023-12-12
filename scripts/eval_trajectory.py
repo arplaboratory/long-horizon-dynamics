@@ -15,8 +15,15 @@ font = {"family" : "sans",
 matplotlib.rc("font", **font)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-colors = ["#7d7376","#365282","#e84c53","#edb120"]
-
+custom_dark_colors = [
+    (51, 102, 153),  # Dark blue
+    (153, 51, 51),   # Dark red
+    (51, 153, 102),  # Dark green
+    (102, 51, 102),  # Dark purple
+    (0, 102, 102),   # Dark teal
+    (102, 102, 0)    # Dark yellow
+]
+colors = [(r / 255, g / 255, b / 255) for (r, g, b) in custom_dark_colors]
 
 from utils import check_folder_paths, plot_data
 from config import parse_args, load_args
@@ -39,6 +46,7 @@ OUTPUT_FEATURES = {
     "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
     "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
     "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"],
+    "test": ["u (m/s)", "v (m/s)", "w (m/s)", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p (rad/s)", "q (rad/s)", "r (rad/s)"],
 }
 
 
@@ -50,7 +58,7 @@ def load_data(hdf5_path, hdf5_file):
 
 if __name__ == "__main__":
 
-    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231206-170703_1/'
+    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231212-095038_1/'
     # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
@@ -70,7 +78,7 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
  
     # create the dataset
-    X, Y = load_data(data_path + "test/", 'test.h5')
+    X, Y = load_data(data_path + "test/", 'test_trajectory.h5')
 
     # convert X and Y to tensors
     X = torch.from_numpy(X).float().to(args.device)
@@ -137,31 +145,31 @@ if __name__ == "__main__":
         
             y_hat = model(input_tensor).view(output_shape) 
 
-            # Reortho-normalize rotation matrix using SVD
-            R_column1 = [y_hat[0][3], y_hat[0][6], y_hat[0][9]]
-            R_column2 = [y_hat[0][4], y_hat[0][7], y_hat[0][10]]
-            R_column3 = [y_hat[0][5], y_hat[0][8], y_hat[0][11]]
+            # # Reortho-normalize rotation matrix using SVD
+            # R_column1 = [y_hat[0][3], y_hat[0][6], y_hat[0][9]]
+            # R_column2 = [y_hat[0][4], y_hat[0][7], y_hat[0][10]]
+            # R_column3 = [y_hat[0][5], y_hat[0][8], y_hat[0][11]]
 
-            # SVD 
-            U, S, V = torch.svd(torch.tensor([R_column1, R_column2, R_column3]))
+            # # SVD 
+            # U, S, V = torch.svd(torch.tensor([R_column1, R_column2, R_column3]))
 
-            # Reconstruct rotation matrix
-            R = torch.mm(U, V.t())
+            # # Reconstruct rotation matrix
+            # R = torch.mm(U, V.t())
 
-            # Reconstruct output
-            y_hat[0][3] = R[0][0]
-            y_hat[0][4] = R[0][1]
-            y_hat[0][5] = R[0][2]
-            y_hat[0][6] = R[1][0]
-            y_hat[0][7] = R[1][1]
-            y_hat[0][8] = R[1][2]
-            y_hat[0][9] = R[2][0]
-            y_hat[0][10] = R[2][1]
-            y_hat[0][11] = R[2][2]
+            # # Reconstruct output
+            # y_hat[0][3] = R[0][0]
+            # y_hat[0][4] = R[0][1]
+            # y_hat[0][5] = R[0][2]
+            # y_hat[0][6] = R[1][0]
+            # y_hat[0][7] = R[1][1]
+            # y_hat[0][8] = R[1][2]
+            # y_hat[0][9] = R[2][0]
+            # y_hat[0][10] = R[2][1]
+            # y_hat[0][11] = R[2][2]
             
          
-            # Add current input to the output 
-            y_hat = input_tensor[:, -1, :-4] + y_hat
+            # # Add current input to the output 
+            # y_hat = input_tensor[:, -1, :-4] + y_hat
        
 
             x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
@@ -186,27 +194,28 @@ if __name__ == "__main__":
 
 
     # Plot and Save MSE loss and mean MSE loss
-    fig = plt.figure()
-    plt.plot(trajectory_loss)
+    fig = plt.figure(figsize=(16, 16), dpi=400)
+    plt.plot(trajectory_loss, color=colors[0])
     # PLot mean loss
-    plt.plot(np.ones(len(trajectory_loss))*mean_loss, label="Mean Loss")
+    plt.plot(np.ones(len(trajectory_loss))*mean_loss, label="Mean Loss", color=colors[5])
     plt.legend()
     # print to precision 3 of mean and varience to plot top left
-    plt.text(0, 0.95, f"Mean Loss: {mean_loss:.3f}", transform=plt.gca().transAxes)
-    plt.text(0, 0.90, f"Variance: {np.var(trajectory_loss):.3f}", transform=plt.gca().transAxes)
+    plt.text(0.55, 0.85, f"Mean Loss: {mean_loss:.3f}", transform=plt.gca().transAxes)
+    plt.text(0.55, 0.80, f"Variance: {np.var(trajectory_loss):.3f}", transform=plt.gca().transAxes)
 
     plt.xlabel("No. of recursive predictions")
     plt.ylabel("MSE Loss")
     plt.title("MSE Loss")
-    plt.savefig(experiment_path + "plots/eval_mse_loss.pdf")
+    plt.savefig(experiment_path + "plots/eval_mse_loss.png")
+    plt.close()
 
-    with PdfPages(experiment_path + "plots/eval_trajectory.pdf") as pdf:
-        for i in range(len(OUTPUT_FEATURES[args.attitude])):
-            fig = plt.figure()
-            plt.plot(Y_plot[:, i], label="True")
-            plt.plot(Y_hat_plot[:, i], label="Predicted")
-            plt.xlabel("Time (s)")
-            plt.ylabel(OUTPUT_FEATURES[args.attitude][i])
-            plt.legend()
-            pdf.savefig(fig)
-            plt.close(fig)
+    # Generate aesthetic plots and save them individually
+    for i in range(15):
+        fig = plt.figure(figsize=(16, 16), dpi=400)
+        plt.plot(Y_plot[:, i], label="Ground Truth", color=colors[1])
+        plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2])
+        plt.legend()
+        plt.xlabel("No. of recursive predictions")
+        plt.ylabel(OUTPUT_FEATURES["test"][i])
+        plt.savefig(experiment_path + "plots/eval_" + OUTPUT_FEATURES[args.attitude][i] + ".png")
+        plt.close()

@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument('--ensemble_size',         type=int,      default=5)
     parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--attitude',              type=str,      default='rotation')
+    parser.add_argument('--delta',                 type=bool,     default=False)
 
     # MLP Model
     parser.add_argument('--mlp_layers',            type=list,     default=[256, 128, 64])
