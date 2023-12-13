@@ -26,7 +26,8 @@ if __name__ == "__main__":
     data_path = resources_path + "data/"
     experiment_path = resources_path + "experiments/" + time.strftime("%Y%m%d-%H%M%S") + "_" + str(args.run_id) + "/"
 
-    check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots")])
+    check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
+                        os.path.join(experiment_path, "plots", "testset")])
 
     # save arguments
     save_args(args, os.path.join(experiment_path, "args.txt"))
