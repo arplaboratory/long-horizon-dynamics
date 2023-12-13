@@ -7,6 +7,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.widgets import Slider
+import seaborn as sns
 
 plt.rcParams["figure.figsize"] = (19.20, 10.80)
 # font = {"family" : "sans",
@@ -62,7 +63,7 @@ def load_data(hdf5_path, hdf5_file):
 
 if __name__ == "__main__":
 
-    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231212-214622_1/'
+    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/full_state_predictor/'
     # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
@@ -207,29 +208,64 @@ if __name__ == "__main__":
     Y_plot = Y_plot[:10, :]
     Y_hat_plot = Y_hat_plot[:10, :]
 
-    # Plot and Save MSE loss as a histogram
-    fig = plt.figure(figsize=(16, 16), dpi=400)
-    plt.hist(trajectory_loss, bins=100, color=colors[2])
-    plt.xlabel("MSE Loss")
-    plt.ylabel("Frequency")
-    plt.title("MSE Loss")
+    ### Plot and Save MSE loss as a histogram
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+    ax.hist(trajectory_loss, bins=30, color='skyblue', alpha=0.7, edgecolor='black')
+
+    ax.set_xlabel("MSE Loss")
+    ax.set_ylabel("Frequency")
+    ax.set_title("Distribution of MSE Loss")
+
+    # Adding gridlines
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+
+    # Customize ticks and labels
+    ax.tick_params(axis='both', which='major', labelsize=10)
+    ax.tick_params(axis='x', rotation=45)
+
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig(experiment_path + "plots/trajectory/eval_mse_histogram.png")
+    plt.close()
+
+    ### Plot and Save MSE loss over no. of recursions
+    
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+    ax.plot(trajectory_loss, color='skyblue', linewidth=2.5, label='MSE Loss')
+
+    # Plot mean loss line
+    ax.axhline(y=mean_loss, label="Mean Loss", color='orange', linestyle=line_styles[1], linewidth=2.5)
+
+    # Print mean and variance on the plot
+    # ax.text(0.80, 0.9, f"Mean Loss: {mean_loss:.3f}", transform=ax.transAxes)
+    # ax.text(0.80, 0.85, f"Variance: {np.var(trajectory_loss):.3f}", transform=ax.transAxes)
+
+    ax.set_xlabel("No. of Recursive Predictions")
+    ax.set_ylabel("MSE Loss")
+    ax.set_title("MSE Loss Analysis")
+    ax.legend()
+
+    # Save the plot
+    plt.tight_layout()
     plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
     plt.close()
-    
-    # fig = plt.figure(figsize=(16, 16), dpi=400)
-    # plt.plot(trajectory_loss, color=colors[0])
-    # # PLot mean loss
-    # plt.plot(np.ones(len(trajectory_loss))*mean_loss, label="Mean Loss", color=colors[3])
-    # plt.legend()
-    # # print to precision 3 of mean and varience to plot top left
-    # plt.text(0.55, 0.85, f"Mean Loss: {mean_loss:.3f}", transform=plt.gca().transAxes)
-    # plt.text(0.55, 0.80, f"Variance: {np.var(trajectory_loss):.3f}", transform=plt.gca().transAxes)
 
-    # plt.xlabel("No. of recursive predictions")
-    # plt.ylabel("MSE Loss")
-    # plt.title("MSE Loss")
-    # plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
-    # plt.close()
+    ### Plot and Save MSE loss as a boxplot 
+
+    plt.figure(figsize=(8, 6))
+    sns.boxplot(y=trajectory_loss, color='skyblue')
+    plt.xlabel("MSE Loss")
+    plt.title("Distribution of MSE Loss")
+    plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss_boxplot.png")
+    plt.close()
+
+    ### Plot and Save MSE loss as a density plot 
+    plt.figure(figsize=(8, 6))
+    sns.kdeplot(data=trajectory_loss, shade=True, color='skyblue')
+    plt.xlabel("MSE Loss")
+    plt.title("Density Plot of MSE Loss")
+    plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss_density.png")
+    plt.close()
 
     # Generate aesthetic plots and save them individually
     # Generate aesthetic plots and save them individually
