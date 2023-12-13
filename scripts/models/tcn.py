@@ -54,12 +54,21 @@ class TCN(nn.Module):
     def __init__(self, num_inputs, num_channels, kernel_size, dropout, num_outputs):
         super(TCN, self).__init__()
         self.tcn = TemporalConvNet(num_inputs, num_channels, kernel_size=kernel_size, dropout=dropout)
-        self.fc = nn.Linear(num_channels[-1], num_outputs)  # Output shape matches (batch_size, num_features-4)
+        # self.fc = nn.Linear(num_channels[-1], num_outputs)  # Output shape matches (batch_size, num_features-4)
+        self.fc_velocity = nn.Linear(num_channels[-1], 3)  
+        self.fc_attitude = nn.Linear(num_channels[-1], 9)
+        self.fc_angular_velocity = nn.Linear(num_channels[-1], 3)
 
     def forward(self, x):
         x = x.permute(0, 2, 1)  # Transpose input to (batch_size, num_features, history_length)
         y = self.tcn(x)
-        y = self.fc(y[:, :, -1])  # Take the output of the last time step
+        # y = self.fc(y[:, :, -1])  # Take the output of the last time step
+        
+        pred_vel = self.fc_velocity(y[:, :, -1])
+        pred_attitude = self.fc_attitude(y[:, :, -1])
+        pred_angular_velocity = self.fc_angular_velocity(y[:, :, -1])
+
+        y = torch.cat((pred_vel, pred_attitude, pred_angular_velocity), dim=1)
         return y
 
 # Example usage:

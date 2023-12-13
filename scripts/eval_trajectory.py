@@ -62,7 +62,7 @@ def load_data(hdf5_path, hdf5_file):
 
 if __name__ == "__main__":
 
-    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231212-191814_1/'
+    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231212-214622_1/'
     # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
@@ -149,6 +149,15 @@ if __name__ == "__main__":
         
             y_hat = model(input_tensor).view(output_shape) 
 
+            # Add current input to the output 
+            if args.delta:
+                # Add velocity
+                y_hat[:, 0:3] = y_hat[:, 0:3] + input_tensor[:, -1, 0:3]
+                # y_hat[:, 0:3] = y_hat[:, 0:3] + X[i, 0:3]
+                # Add angular velocity
+                y_hat[:, 12:15] = y_hat[:, 12:15] + input_tensor[:, -1, 12:15]
+                # y_hat[:, 12:15] = y_hat[:, 12:15] + X[i, 12:15]
+
             # # Reortho-normalize rotation matrix using SVD
             R_column1 = [y_hat[0][3], y_hat[0][6], y_hat[0][9]]
             R_column2 = [y_hat[0][4], y_hat[0][7], y_hat[0][10]]
@@ -172,8 +181,7 @@ if __name__ == "__main__":
             y_hat[0][11] = R[2][2]
             
          
-            # # Add current input to the output 
-            # y_hat = input_tensor[:, -1, :-4] + y_hat
+            
        
 
             x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
@@ -198,21 +206,30 @@ if __name__ == "__main__":
 
     Y_plot = Y_plot[:10, :]
     Y_hat_plot = Y_hat_plot[:10, :]
-    # Plot and Save MSE loss and mean MSE loss
-    fig = plt.figure(figsize=(16, 16), dpi=400)
-    plt.plot(trajectory_loss, color=colors[0])
-    # PLot mean loss
-    plt.plot(np.ones(len(trajectory_loss))*mean_loss, label="Mean Loss", color=colors[3])
-    plt.legend()
-    # print to precision 3 of mean and varience to plot top left
-    plt.text(0.55, 0.85, f"Mean Loss: {mean_loss:.3f}", transform=plt.gca().transAxes)
-    plt.text(0.55, 0.80, f"Variance: {np.var(trajectory_loss):.3f}", transform=plt.gca().transAxes)
 
-    plt.xlabel("No. of recursive predictions")
-    plt.ylabel("MSE Loss")
+    # Plot and Save MSE loss as a histogram
+    fig = plt.figure(figsize=(16, 16), dpi=400)
+    plt.hist(trajectory_loss, bins=100, color=colors[2])
+    plt.xlabel("MSE Loss")
+    plt.ylabel("Frequency")
     plt.title("MSE Loss")
     plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
     plt.close()
+    
+    # fig = plt.figure(figsize=(16, 16), dpi=400)
+    # plt.plot(trajectory_loss, color=colors[0])
+    # # PLot mean loss
+    # plt.plot(np.ones(len(trajectory_loss))*mean_loss, label="Mean Loss", color=colors[3])
+    # plt.legend()
+    # # print to precision 3 of mean and varience to plot top left
+    # plt.text(0.55, 0.85, f"Mean Loss: {mean_loss:.3f}", transform=plt.gca().transAxes)
+    # plt.text(0.55, 0.80, f"Variance: {np.var(trajectory_loss):.3f}", transform=plt.gca().transAxes)
+
+    # plt.xlabel("No. of recursive predictions")
+    # plt.ylabel("MSE Loss")
+    # plt.title("MSE Loss")
+    # plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
+    # plt.close()
 
     # Generate aesthetic plots and save them individually
     # Generate aesthetic plots and save them individually

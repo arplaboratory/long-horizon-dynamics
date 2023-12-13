@@ -73,7 +73,14 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
 
                 # output should be the difference between the unrolled states and the current state
                 if args.delta:
-                    Y[:, :, :-4] = Y[:, :, :-4] - X[:, -1, :].reshape((num_samples, 1, data_np.shape[1])).repeat(unroll_length, axis=1)[:, :, :-4]
+                    # Y[:, :, :-4] = Y[:, :, :-4] - X[:, -1, :].reshape((num_samples, 1, data_np.shape[1])).repeat(unroll_length, axis=1)[:, :, :-4]
+                    
+                    # Difference in velocity
+                    Y[:, :, :3] = Y[:, :, :3] - X[:, -1, :].reshape((num_samples, 1, data_np.shape[1])).repeat(unroll_length, axis=1)[:, :, :3]
+
+                    # Difference in anglular velocity
+                    Y[:, :, 12:15] = Y[:, :, 12:15] - X[:, -1, :].reshape((num_samples, 1, data_np.shape[1])).repeat(unroll_length, axis=1)[:, :, 12:15]
+                    
 
                
             all_X.append(X)
@@ -225,7 +232,7 @@ if __name__ == "__main__":
     X, Y = load_hdf5(data_path + 'test/', 'test_eval.h5')
     print(X.shape, Y.shape)
 
-    print(Y[:, 0, -10:])
+    print(Y[:, 0, -2:])
 
     X, Y = load_hdf5(data_path + 'test/', 'test_trajectory.h5')
     print(X.shape, Y.shape)
