@@ -179,15 +179,6 @@ def hdf5_test(data_path, folder_name, hdf5_file, attitude, history_length):
     X = np.concatenate(all_X, axis=0)
     Y = np.concatenate(all_Y, axis=0)
 
-    # if normalize save mean and std for each feature in the training set and normalize the data
-    if args.normalize:
-        mean = np.mean(X, axis=0)
-        std = np.std(X, axis=0)
-
-        np.save(data_path + folder_name + 'mean.npy', mean)
-        np.save(data_path + folder_name + 'std.npy', std)
-        X = (X - mean) / std
-    
    
     # save the data
     # Create the HDF5 file and datasets for inputs and outputs
