@@ -9,13 +9,25 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.widgets import Slider
 
 plt.rcParams["figure.figsize"] = (19.20, 10.80)
-font = {"family" : "sans",
-        "weight" : "normal",
-        "size"   : 28}
-matplotlib.rc("font", **font)
-matplotlib.rcParams["pdf.fonttype"] = 42
-matplotlib.rcParams["ps.fonttype"] = 42
+# font = {"family" : "sans",
+#         "weight" : "normal",
+#         "size"   : 28}
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Times New Roman"],  # Choose your serif font here
+    "font.size": 28,
+    # "figure.figsize": (19.20, 10.80),
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42
+})
+
+# matplotlib.rc("font", **font)
+# matplotlib.rcParams["pdf.fonttype"] = 42
+# matplotlib.rcParams["ps.fonttype"] = 42
 colors = ["#7d7376","#365282","#e84c53","#edb120"]
+markers = ['o', 's', '^', 'D', 'v', 'p']
+line_styles = ['-', '--', '-.', ':', '-', '--']
 
 
 from utils import check_folder_paths, plot_data
@@ -130,7 +142,6 @@ if __name__ == "__main__":
 
         output = model(X)        
 
-
         loss = torch.mean((output - Y[:, 0, :-4])**2)
         print("Test Loss: ", loss.item())
 
@@ -142,22 +153,22 @@ if __name__ == "__main__":
         Y_plot = Y[:, 0, :-4].detach().cpu().float().numpy()
         Y_hat_plot = output.detach().cpu().float().numpy()
 
-        # print('--------------------------')
-        # print(Y_plot[-100:])
-        # print(Y_hat_plot[-100:])
-
+    
         Y_plot = Y_plot[::50, :]
         Y_hat_plot = Y_hat_plot[::50, :]
 
         # Generate aesthetic plots and save them individually
         for i in range(15):
-            fig = plt.figure(figsize=(16, 16), dpi=400)
-            plt.plot(Y_plot[:, i], label="Ground Truth", color=colors[1])
-            plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2])
+            fig = plt.figure(figsize=(8, 6), dpi=400)
+            plt.plot(Y_plot[:, i], label="Ground Truth", color=colors[1], linewidth=4.5)
+            plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
+            
+            plt.grid(True)  # Add gridlines
+            plt.tight_layout(pad=1.5)
             plt.legend()
-            plt.xlabel("No. of recursive predictions")
+            plt.xlabel("Time (s)")
             plt.ylabel(OUTPUT_FEATURES["test"][i])
-            plt.savefig(experiment_path + "plots/testset_" + OUTPUT_FEATURES[args.attitude][i] + ".png")
+            plt.savefig(experiment_path + "plots/testset/testset_" + OUTPUT_FEATURES[args.attitude][i] + ".png")
             plt.close()
 
 
