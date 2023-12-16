@@ -102,6 +102,20 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
             std = np.load(data_path + 'train/' + 'std_train.npy')
 
         Y = (Y - mean) / std
+    
+    # Normalize the input
+    if args.normalize_input:
+        if train == True:
+            mean = np.mean(X, axis=0)
+            std = np.std(X, axis=0)
+
+            np.save(data_path + folder_name + 'mean_train_input.npy', mean)
+            np.save(data_path + folder_name + 'std_train_input.npy', std)
+        else:
+            mean = np.load(data_path + 'train/' + 'mean_train_input.npy')
+            std = np.load(data_path + 'train/' + 'std_train_input.npy')
+
+        X = (X - mean) / std
         
     # save the data
     # Create the HDF5 file and datasets for inputs and outputs
@@ -220,10 +234,39 @@ if __name__ == "__main__":
     # parse arguments
     
 
-    X, Y = load_hdf5(data_path + 'test/', 'test_eval.h5')
+    X, Y = load_hdf5(data_path + 'train/', 'train.h5')
     print(X.shape, Y.shape)
 
-    print(Y[:, 0, -2:])
+   
 
-    X, Y = load_hdf5(data_path + 'test/', 'test_trajectory.h5')
-    print(X.shape, Y.shape)
+    print("Min and Max values for each of the output features")
+    print("Minimum")
+    print(np.min(Y, axis=2))
+
+    print("Maximum")
+    print(np.max(Y, axis=2))
+
+
+    # Average Difference between x_t and x_t+1
+    print("Average Difference between x_t and x_t+1")
+
+    print(np.abs(np.mean(Y[:-4, 0, :] - X[:-4, -1, :], axis=1)))
+
+    # Print verage Difference between x_t-h and x_t+1
+    print("Average Difference between x_t-H and x_t+1")
+    print(np.abs(np.mean(Y[:-4, 0, :] - X[:-4, 0, :], axis=1)))
+
+
+
+
+
+   
+
+
+    # X, Y = load_hdf5(data_path + 'test/', 'test_eval.h5')
+    # print(X.shape, Y.shape)
+
+    # print(Y[:, 0, -2:])
+
+    # X, Y = load_hdf5(data_path + 'test/', 'test_trajectory.h5')
+    # print(X.shape, Y.shape)

@@ -51,7 +51,8 @@ OUTPUT_FEATURES = {
     "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
     "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
     "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"],
-    "test": ["u (m/s)", "v (m/s)", "w (m/s)", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p (rad/s)", "q (rad/s)", "r (rad/s)"],
+    # "test": ["u (m/s)", "v (m/s)", "w (m/s)", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p (rad/s)", "q (rad/s)", "r (rad/s)"],
+    "test": ["u (m/s)", "v (m/s)", "w (m/s)", "q0", "q1", "q2", "q3", "p (rad/s)", "q (rad/s)", "r (rad/s)"],
 }
 
 
@@ -63,7 +64,7 @@ def load_data(hdf5_path, hdf5_file):
 
 if __name__ == "__main__":
 
-    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/full_state_predictor/'
+    set_experiment = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20231216-161226_1/'
     # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
@@ -135,6 +136,12 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(model_path))
     model.to(args.device)
 
+    mean = torch.from_numpy(np.load(data_path + 'train/' + 'mean_train.npy')).float().to(args.device)
+    std = torch.from_numpy(np.load(data_path + 'train/' + 'std_train.npy')).float().to(args.device)
+
+    mean_input = torch.from_numpy(np.load(data_path + 'train/' + 'mean_train_input.npy')).float().to(args.device)
+    std_input = torch.from_numpy(np.load(data_path + 'train/' + 'std_train_input.npy')).float().to(args.device)
+
     input_shape = (1, args.history_length, len(OUTPUT_FEATURES[args.attitude])+4)
     output_shape = (1, len(OUTPUT_FEATURES[args.attitude]))
 
@@ -147,8 +154,16 @@ if __name__ == "__main__":
     trajectory_loss = []
     with torch.no_grad():
        for i in range(args.history_length -1, X.shape[0]):
-        
+            
+            # Normalize the input
+            if args.normalize_input:
+                input_tensor = (input_tensor - mean_input) / std_input
+                
             y_hat = model(input_tensor).view(output_shape) 
+
+            # Unnormalize the output
+            if args.normalize:
+                y_hat = (y_hat * std[0, :-4]) + mean[0, :-4]
 
             # Add current input to the output 
             if args.delta:
@@ -159,31 +174,18 @@ if __name__ == "__main__":
                 y_hat[:, 12:15] = y_hat[:, 12:15] + input_tensor[:, -1, 12:15]
                 # y_hat[:, 12:15] = y_hat[:, 12:15] + X[i, 12:15]
 
-            # # Reortho-normalize rotation matrix using SVD
-            R_column1 = [y_hat[0][3], y_hat[0][6], y_hat[0][9]]
-            R_column2 = [y_hat[0][4], y_hat[0][7], y_hat[0][10]]
-            R_column3 = [y_hat[0][5], y_hat[0][8], y_hat[0][11]]
+            # # Normalize the quaternion
+            q0 = y_hat[:, 3]
+            q1 = y_hat[:, 4]
+            q2 = y_hat[:, 5]
+            q3 = y_hat[:, 6]
 
-            # SVD 
-            U, S, V = torch.svd(torch.tensor([R_column1, R_column2, R_column3]))
+            q_norm = torch.sqrt(q0**2 + q1**2 + q2**2 + q3**2).view(-1, 1)
 
-            # Reconstruct rotation matrix
-            R = torch.mm(U, V.t())
-
-            # Reconstruct output
-            y_hat[0][3] = R[0][0]
-            y_hat[0][4] = R[0][1]
-            y_hat[0][5] = R[0][2]
-            y_hat[0][6] = R[1][0]
-            y_hat[0][7] = R[1][1]
-            y_hat[0][8] = R[1][2]
-            y_hat[0][9] = R[2][0]
-            y_hat[0][10] = R[2][1]
-            y_hat[0][11] = R[2][2]
-            
-         
-            
-       
+            y_hat[:, 3] = q0 / q_norm
+            y_hat[:, 4] = q1 / q_norm
+            y_hat[:, 5] = q2 / q_norm
+            y_hat[:, 6] = q3 / q_norm
 
             x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1) #.clone()
 
@@ -205,8 +207,8 @@ if __name__ == "__main__":
     # Y_plot = Y_plot[::50, :]
     # Y_hat_plot = Y_hat_plot[::50, :]
 
-    Y_plot = Y_plot[:10, :]
-    Y_hat_plot = Y_hat_plot[:10, :]
+    # Y_plot = Y_plot[:10, :]
+    # Y_hat_plot = Y_hat_plot[:10, :]
 
     ### Plot and Save MSE loss as a histogram
     fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
@@ -269,7 +271,7 @@ if __name__ == "__main__":
 
     # Generate aesthetic plots and save them individually
     # Generate aesthetic plots and save them individually
-    for i in range(15):
+    for i in range(10):
         fig = plt.figure(figsize=(8, 6), dpi=400)
         plt.plot(Y_plot[:, i], label="Ground Truth", color=colors[1], linewidth=4.5)
         plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
