@@ -11,39 +11,67 @@ def parse_args():
     parser.add_argument('-e', '--epochs',          type=int,      default=50000)
     parser.add_argument('-b', '--batch_size',      type=int,      default=16384)
     parser.add_argument('--dropout',               type=float,    default=0.2)
-    parser.add_argument('--weight_decay',          type=float,    default=0.0)
-    parser.add_argument('-l', '--learning_rate',   type=float,    default=0.001)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=False)
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
+    parser.add_argument('--seed',                  type=int,      default=10)
+
+    # Optimizer
+    parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
+    parser.add_argument('--warmup_lr',             type=float,    default=5e-3)
+    parser.add_argument('--cosine_lr',             type=float,    default=1e-4)
+    parser.add_argument('--warmup_steps',          type=int,      default=25000)
+    parser.add_argument('--cosine_steps',          type=int,      default=100000)
+    parser.add_argument('--gradient_clip_val',     type=float,    default=1.0)
+    parser.add_argument('--weight_decay',          type=float,    default=1e-2)
+    parser.add_argument('--adam_beta1',            type=float,    default=0.9)
+    parser.add_argument('--adam_beta2',            type=float,    default=0.95)
+    parser.add_argument('--adam_eps',              type=float,    default=1e-08)
+
+    # Physics-inspired loss 
+    parser.add_argument('--physics_inspired',      type=bool,     default=False)
+    parser.add_argument('--lamda',                 type=float,    default=0.1)
+
+    # Logger 
     parser.add_argument('-p', '--plot',            type=bool,     default=False)
     parser.add_argument('--save_freq',             type=int,      default=50)
     parser.add_argument('--plot_freq',             type=int,      default=20)
-    parser.add_argument('--normalize',             type=bool,     default=False)
     parser.add_argument('--val_freq',              type=int,      default=1)
-    parser.add_argument('--std_percentage',        type=float,    default=0.1)
-    parser.add_argument('--model_type',            type=str,      default='tcn')
-    parser.add_argument('--history_length',        type=int,      default=10)
-    parser.add_argument('--unroll_length',         type=int,      default=1)
-    parser.add_argument('--ensemble_size',         type=int,      default=5)
+    
+    # Data
+    parser.add_argument('--normalize',             type=bool,     default=False)
     parser.add_argument('--augmentation',          type=bool,     default=False)
-    parser.add_argument('--attitude',              type=str,      default='rotation')
+    parser.add_argument('--std_percentage',        type=float,    default=0.1)
+    parser.add_argument('--unroll_length',         type=int,      default=1)
+    parser.add_argument('--history_length',        type=int,      default=10)
+    parser.add_argument('--attitude',              type=str,      default='quaternion')
     parser.add_argument('--delta',                 type=bool,     default=False)
+    parser.add_argument('--vehicle_type',          type=str,      default='quadrotor')
+    
+
+    # Encoder Model
+    parser.add_argument('--model_type',            type=str,      default='transformer')
+    parser.add_argument('--encoder_dim',           type=int,      default=256)
 
     # MLP Model
     parser.add_argument('--mlp_layers',            type=list,     default=[256, 128, 64])
     
-    # LSTM Model
+    # LSTM and GRU Model
     parser.add_argument('--hidden_size',           type=int,      default=64)
-    parser.add_argument('--num_layers',            type=int,      default=1)
-    
-    # CNN Model
-    parser.add_argument('--num_filters',           type=int,      default=32)
-    parser.add_argument('--kernel_size',           type=int,      default=3)
-    
-    parser.add_argument('--residual',              type=bool,     default=False)
+    parser.add_argument('--output_type',           type=str,      default='hidden')
+
 
     # TCN Model
+    parser.add_argument('--kernel_size',           type=int,      default=3)
     parser.add_argument('--num_channels',          type=list,     default=[64, 32, 32])
+
+    # Transformer Model
+    parser.add_argument('--d_model',               type=int,      default=512)
+    parser.add_argument('--num_heads',             type=int,      default=2)
+    parser.add_argument('--ffn_hidden',            type=int,      default=1024)
+    parser.add_argument('--num_layers',            type=int,      default=3)
+
+    # Decoder Model
+    parser.add_argument('--decoder_layers',        type=list,     default=[256, 128, 64])
 
     return parser.parse_args()
 
