@@ -32,8 +32,9 @@ line_styles = ['-', '--', '-.', ':', '-', '--']
 
 
 OUTPUT_FEATURES = {
-    "quadrotor": ["vdot_x", "vdot_y", "vdot_z", "wdot_x", "wdot_y", "wdot_z"],
-    "label": ["vdotx (m/s**2)", "vdoty (m/s**2)", "vdotz (m/s**2)", "wdotx (rad/s**2)", "wdoty (rad/s**2)", "wdotz (rad/s**2)"],
+    "discrete": ["v_x", "v_y", "v_z", "q_x", "q_y", "q_z", "q_w", "w_x", "w_y", "w_z", "u_0", "u_1", "u_2", "u_3"],
+
+    "label": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "q_x", "q_y", "q_z", "q_w", "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
 }
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
@@ -173,7 +174,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             plt.legend()
             plt.xlabel("Time (s)")
             plt.ylabel(OUTPUT_FEATURES["label"][i])
-            plt.savefig(self.experiment_path + "plots/testset/testset_" + OUTPUT_FEATURES["quadrotor"][i] + ".png")
+            plt.savefig(self.experiment_path + "plots/testset/testset_" + OUTPUT_FEATURES["discrete"][i] + ".png")
             plt.close()
 
         # release memory

@@ -4,7 +4,7 @@ import numpy as np
 import h5py
 import sys
 from tqdm import tqdm
-from dynamics_learning.utils import Euler2Quaternion, Euler2Rotation
+from dynamics_learning.utils import Quaternion2Euler, Quaternion2Rotation
 from config import parse_args
 
 
@@ -30,37 +30,23 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
             velocity_data = data[['v_x', 'v_y', 'v_z']].values
             attitude_data = data[['q_x', 'q_y', 'q_z', 'q_w']].values
             angular_velocity_data = data[['w_x', 'w_y', 'w_z']].values
-            control_data = data[['u_0', 'u_1', 'u_2', 'u_3']].values * 0.001
+            control_data = data[['u_0', 'u_1', 'u_2', 'u_3']].values * 0.001 
 
-            v_dot_data = data[['vdot_x', 'vdot_y', 'vdot_z']].values
-            w_dot_data = data[['wdot_x', 'wdot_y', 'wdot_z']].values
+            data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
 
-            # v_dot_nom = data[['vdot_nom_x', 'vdot_nom_y', 'vdot_nom_z']].values
-            # w_dot_nom = data[['wdot_nom_x', 'wdot_nom_y', 'wdot_nom_z']].values
+            num_samples = data_np.shape[0] - history_length 
 
+            X = np.zeros((num_samples, history_length, data_np.shape[1]))
+            Y = np.zeros((num_samples, data_np.shape[1]-4))
 
-            # Concatenate all data
-            input_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
-            # output_np = np.hstack((v_dot_data, w_dot_data, v_dot_nom, w_dot_nom))
-            output_np = np.hstack((v_dot_data, w_dot_data))
-            assert input_np.shape[0] == output_np.shape[0]
+            for i in range(num_samples):
+                X[i, :, :] = data_np[i:i+history_length, :]
+                Y[i, :] = data_np[i+history_length, :-4]
+
+            # If delta is true, then the output is the difference between the current and previous state
+            if args.delta:
+                Y = Y - X[:, -1, :-4]
             
-
-            if history_length == 0:
-                num_samples = input_np.shape[0] - 1
-
-                X = input_np
-                Y = output_np
-            else:
-                num_samples = input_np.shape[0] - history_length 
-                X = np.zeros((num_samples, history_length, input_np.shape[1]))
-                Y = np.zeros((num_samples, output_np.shape[1]))
-
-                for i in range(num_samples):
-                    X[i,:,:] = input_np[i:i+history_length,:]
-                    Y[i,:] = output_np[i+history_length-1,:]
-        
-               
             all_X.append(X)
             all_Y.append(Y)
 
@@ -125,16 +111,13 @@ if __name__ == "__main__":
     X, Y = load_hdf5(data_path + 'train/', 'train.h5')
     print(X.shape, Y.shape)
 
-   
-    print(X[:, :, 0])
-    print(Y[:, 0])
 
     # print("Min and Max values for each of the output features")
     print("Minimum")
-    print(np.min(Y, axis=1))
+    print(np.min(Y, axis=0))
 
     print("Maximum")
-    print(np.max(Y, axis=1))
+    print(np.max(Y, axis=0))
 
 
 
