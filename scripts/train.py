@@ -60,7 +60,7 @@ def main(args):
     input_size = train_dataset.X_shape[2]
     output_size = train_dataset.Y_shape[1]
 
-    sample_data = next(iter(valid_loader))
+    val_gt = valid_dataset.Y
     
     # Load model
     print('Loading model ...')
@@ -72,7 +72,7 @@ def main(args):
         experiment_path,
         input_size=input_size,
         output_size=output_size,
-        sample_data=sample_data,
+        valid_data=val_gt,
         max_iterations=train_dataset.num_steps * args.epochs,
     )
 
