@@ -4,13 +4,21 @@ def parse_args():
     print("Parsing arguments ...")
     parser = argparse.ArgumentParser(description='Arguments for dynamics learning')
 
+    # architecture
+    parser.add_argument('-N', '--model_type',    type=str,        default='tcn')
+    parser.add_argument('--encoder_sizes',         type=list,     default='512,256,256')
+    parser.add_argument('--decoder_sizes',         type=list,     default='512,256,256')
+    parser.add_argument('--encoder_output',        type=str,      default='output')
+    parser.add_argument('--num_layers',            type=int,      default=4)
+    parser.add_argument('--kernel_size',           type=int,      default=2)
+    parser.add_argument('--dropout',               type=float,    default=0.1)
+
     # training
     parser.add_argument('-r', '--run_id',          type=int,      default=1)
     parser.add_argument('-d', '--gpu_id',          type=int,      default=0)
     parser.add_argument('--num_devices',           type=int,      default=1)
     parser.add_argument('-e', '--epochs',          type=int,      default=50000)
     parser.add_argument('-b', '--batch_size',      type=int,      default=128)
-    parser.add_argument('--dropout',               type=float,    default=0.2)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=False)
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('--seed',                  type=int,      default=10)
@@ -48,32 +56,18 @@ def parse_args():
     parser.add_argument('--vehicle_type',          type=str,      default='quadrotor')
     
 
-    # Encoder Model
-    parser.add_argument('--model_type',            type=str,      default='transformer')
-    parser.add_argument('--encoder_dim',           type=int,      default=256)
-
-    # MLP Model
-    parser.add_argument('--mlp_layers',            type=list,     default=[256, 128, 64])
-    
-    # LSTM and GRU Model
-    parser.add_argument('--hidden_size',           type=int,      default=64)
-    parser.add_argument('--output_type',           type=str,      default='hidden')
-
-
-    # TCN Model
-    parser.add_argument('--kernel_size',           type=int,      default=3)
-    parser.add_argument('--num_channels',          type=list,     default=[64, 32, 32])
-
+  
     # Transformer Model
     parser.add_argument('--d_model',               type=int,      default=512)
     parser.add_argument('--num_heads',             type=int,      default=2)
     parser.add_argument('--ffn_hidden',            type=int,      default=1024)
-    parser.add_argument('--num_layers',            type=int,      default=3)
 
-    # Decoder Model
-    parser.add_argument('--decoder_layers',        type=list,     default=[256, 128, 64])
-
-    return parser.parse_args()
+    args = parser.parse_args()
+    for arg in vars(args):
+        value = getattr(args, arg)
+        if isinstance(value, list):
+            setattr(args, arg, [int(e) for e in ''.join(value).split(',')])
+    return args
 
 
 def save_args(args, file_path):

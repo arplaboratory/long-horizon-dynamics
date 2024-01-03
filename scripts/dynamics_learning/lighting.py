@@ -4,7 +4,7 @@ import pytorch_lightning
 import numpy as np
 
 from .loss import MSE
-from .registry import DynamicsModel
+from .registry import get_model
 
 warnings.filterwarnings("ignore")
 
@@ -58,7 +58,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.weight_decay = args.weight_decay
 
         # Get encoder and decoder
-        self.model = DynamicsModel(args, input_size, output_size)
+        self.model = get_model(args, input_size, output_size)
             
         self.loss_fn = MSE()
         

@@ -88,7 +88,7 @@ def main(args):
     )
     if trainer.is_global_zero:
         wandb_logger.experiment.config.update(vars(args))
-    trainer.validate(model, dataloaders=valid_loader)
+    # trainer.validate(model, dataloaders=valid_loader)
     trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
 
 if __name__ == "__main__":
