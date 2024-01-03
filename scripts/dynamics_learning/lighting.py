@@ -4,7 +4,7 @@ import pytorch_lightning
 import numpy as np
 
 from .loss import MSE
-from .registry import get_encoder, get_decoder
+from .registry import DynamicsModel
 
 warnings.filterwarnings("ignore")
 
@@ -32,9 +32,8 @@ line_styles = ['-', '--', '-.', ':', '-', '--']
 
 
 OUTPUT_FEATURES = {
-    "discrete": ["v_x", "v_y", "v_z", "q_x", "q_y", "q_z", "q_w", "w_x", "w_y", "w_z", "u_0", "u_1", "u_2", "u_3"],
-
-    "label": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "q_x", "q_y", "q_z", "q_w", "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
+    "discrete": ["v_x", "v_y", "v_z", "q_w", "q_x", "q_y", "q_z", "w_x", "w_y", "w_z", "u_0", "u_1", "u_2", "u_3"],
+    "label": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "q_w", "q_x", "q_y", "q_z", "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
 }
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
@@ -59,8 +58,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.weight_decay = args.weight_decay
 
         # Get encoder and decoder
-        self.encoder = get_encoder(args, input_size)
-        self.decoder = get_decoder(args, output_size)
+        self.model = DynamicsModel(args, input_size, output_size)
             
         self.loss_fn = MSE()
         
@@ -69,12 +67,15 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         # Save validation predictions and ground truth
         self.val_predictions = []
-        self.val_gt = valid_data[::50, :]
+        self.val_gt = valid_data
+        self.val_full_gt = []
+
+        self.test_predictions = []
 
     def forward(self, x):
         
-        x = self.encoder(x)
-        x = self.decoder(x)
+        x = self.model(x)
+        
         return x
     
     def configure_optimizers(self):
@@ -113,22 +114,33 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             
         self.log(f'val_loss', loss, on_epoch=True, prog_bar=True, logger=True)
 
-        self.val_predictions.append(y_hat.detach().cpu().numpy())
+        if self.args.delta == True:
+            
+
+            linear_velocity_pred = x[:, -1, :3] + y_hat[:, :3] 
+            attitude_pred = y_hat[:, 3:7] * x[:, -1, 3:7]
+            angular_velocity_pred = x[:, -1, 7:10] + y_hat[:, 7:10]
+
+            linear_velocity_gt = x[:, -1, :3] + y[:, :3]
+            attitude_gt = y[:, 3:7] * x[:, -1, 3:7]
+
+            angular_velocity_gt = x[:, -1, 7:10] + y[:, 7:10]
+
+            # Update the output
+            y_hat_full = torch.cat((linear_velocity_pred, attitude_pred, angular_velocity_pred), dim=1)
+            y_full = torch.cat((linear_velocity_gt, attitude_gt, angular_velocity_gt), dim=1)
+            self.val_full_gt.append(y_full.detach().cpu().numpy())
+
+        self.val_predictions.append(y_hat_full.detach().cpu().numpy())
+        
         
         return loss
     
     def test_step(self, test_batch, batch_idx, dataloader_idx=0):
-        x, y = test_batch
-        x = x.float()
-        y = y.float()
-
-        y_hat = self.model(x)
-
-        loss = self.loss_fn(y_hat, y)
-            
-        self.log(f"test_loss", loss)
-            
-        return loss
+        
+        # recursive predictions
+        if batch_idx == 0:
+            x, y = test_batch
 
     def on_train_epoch_start(self):
         pass
@@ -152,22 +164,29 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             self.log("best_valid_loss", self.best_valid_loss, on_epoch=True, prog_bar=True, logger=True)
 
         # Plotting based on the validation frequency
-        if self.current_epoch % self.args.plot_freq == 0:
-            # Plot validation predictions
-            val_predictions_np = np.concatenate(self.val_predictions, axis=0)
+        # if self.current_epoch % self.args.plot_freq == 0:
+        #     # Plot validation predictions
+        #     val_predictions_np = np.concatenate(self.val_predictions, axis=0)
 
-            # Plot predictions and ground truth
-            self.plot_predictions(val_predictions_np)
+        #     if self.args.delta == True:
+        #         val_full_gt_np = np.concatenate(self.val_full_gt, axis=0)
+        #         self.plot_predictions(val_predictions_np, val_full_gt_np)
+        #     else:
+        #         # Plot predictions and ground truth
+        #         self.plot_predictions(val_predictions_np)
 
-    def plot_predictions(self, val_predictions):
-
-        val_predictions = val_predictions[::50, :]
+    def plot_predictions(self, val_predictions, val_full_gt_np=None):
         
+        if val_full_gt_np is not None:
+            Y_gt = val_full_gt_np
+        else: 
+            Y_gt = self.val_gt
+
         # Plot predictions and ground truth
-        for i in range(self.val_gt.shape[1]):
+        for i in range(Y_gt.shape[1]):
             fig = plt.figure(figsize=(8, 6), dpi=400)
             plt.plot(val_predictions[:, i], label="Ground Truth", color=colors[1], linewidth=4.5)
-            plt.plot(self.val_gt[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
+            plt.plot(Y_gt[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
             
             plt.grid(True)  # Add gridlines
             plt.tight_layout(pad=1.5)

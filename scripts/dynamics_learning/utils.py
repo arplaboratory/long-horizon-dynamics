@@ -214,6 +214,19 @@ def Quaternion2Rotation(quaternion):
 
     return R
 
+def deltaQuaternion(q1, q2):
+
+    assert q1.shape == q2.shape
+
+    q1_norms_sq = np.sum(q1**2, axis=1)
+
+    q1_inv = np.hstack((q1[:, 0:1], -q1[:, 1:4])) / q1_norms_sq.reshape(-1, 1)
+
+    # FInd the difference between the two quaternions
+    delta_q = q2 * q1_inv
+
+    return delta_q
+
 if __name__=="__main__":
 
 

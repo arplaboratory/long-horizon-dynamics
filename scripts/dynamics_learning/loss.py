@@ -21,5 +21,4 @@ class MSE(nn.Module):
         loss = (pred - target)**2
         loss = loss.sum(dim=1)
         loss = loss.mean(0)
-
         return loss

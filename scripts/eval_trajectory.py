@@ -202,11 +202,21 @@ if __name__ == "__main__":
     mse_loss = MSE()
     trajectory_loss = []
 
+    model.eval()
     with torch.no_grad():
        for i in range(args.history_length -1, X.shape[0]):
         
             y_hat = model(input_tensor).view(output_shape) 
 
+            if args.delta:
+
+                linear_velocity_pred = input_tensor[:, -1, :3] + y_hat[:, :3] 
+                attitude_pred = y_hat[:, 3:7] * input_tensor[:, -1, 3:7]
+                angular_velocity_pred = input_tensor[:, -1, 7:10] + y_hat[:, 7:10]
+
+                # Update the output
+                y_hat = torch.cat((linear_velocity_pred, attitude_pred, angular_velocity_pred), dim=1)
+                
             # Normlaize the quaternion
             qw = y_hat[:, 3]
             qx = y_hat[:, 4]
@@ -218,8 +228,7 @@ if __name__ == "__main__":
             y_hat[:, 4] = qx / norm
             y_hat[:, 5] = qy / norm
             y_hat[:, 6] = qz / norm
-
-                    
+            
             x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1)
             input_tensor = torch.cat((input_tensor[:, 1:, :], x_curr.view(1, 1, X.shape[-1])), dim=1)
 
@@ -237,9 +246,9 @@ if __name__ == "__main__":
     
     # Consider only the first 100 predictions 
     
-    Y_plot = Y_plot[:10, :]
-    Y_hat_plot = Y_hat_plot[:10, :]
-    trajectory_loss = trajectory_loss[:10]
+    # Y_plot = Y_plot[:10, :]
+    # Y_hat_plot = Y_hat_plot[:10, :]
+    # trajectory_loss = trajectory_loss[:10]
 
 
     

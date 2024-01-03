@@ -1,5 +1,7 @@
 from .models import MLP, LSTM, GRU, TCN, Transformer
 
+import torch.nn as nn
+
 def get_encoder(args, input_size):
     
     encoder = {
@@ -48,5 +50,18 @@ def get_decoder(args, output_size):
                   dropout=args.dropout)
     
     return decoder
-    
+
+
+
+class DynamicsModel(nn.Module):
+    def __init__(self, args, input_size, output_size):
+        super(DynamicsModel, self).__init__()
+        
+        self.encoder = get_encoder(args, input_size)
+        self.decoder = get_decoder(args, output_size)
+        
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
     

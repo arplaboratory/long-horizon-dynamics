@@ -4,7 +4,7 @@ import numpy as np
 import h5py
 import sys
 from tqdm import tqdm
-from dynamics_learning.utils import Quaternion2Euler, Quaternion2Rotation
+from dynamics_learning.utils import Quaternion2Euler, Quaternion2Rotation, deltaQuaternion
 from config import parse_args
 
 
@@ -44,8 +44,14 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
 
             # If delta is true, then the output is the difference between the current and previous state
             if args.delta:
-                Y = Y - X[:, -1, :-4]
-            
+                
+                delta_linear_velocity = Y[:, :3] - X[:, -1, :3]
+                delta_attitude = deltaQuaternion(X[:, -1, 3:7], Y[:, 3:7])
+                delta_angular_velocity = Y[:, 7:10] - X[:, -1, 7:10]
+
+                # Update the output
+                Y = np.hstack((delta_linear_velocity, delta_attitude, delta_angular_velocity))
+
             all_X.append(X)
             all_Y.append(Y)
 
@@ -159,8 +165,20 @@ if __name__ == "__main__":
     csv_to_hdf5(args, data_path)
 
 
-    X, Y = load_hdf5(data_path + 'test/', 'test_eval.h5')
+    X, Y = load_hdf5(data_path + 'test/', 'test.h5')
     print(X.shape, Y.shape)
+
+    print(Y[:2, :])
+
+
+    # MSE for each of the output features
+    print("MSE")
+    print(np.mean(np.square(Y), axis=0))
+
+    # print varience 
+    print("Varience")
+    print(np.var(Y, axis=0))
+
 
 
     # print("Min and Max values for each of the output features")
