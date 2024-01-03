@@ -126,7 +126,6 @@ if __name__ == "__main__":
     # save arguments
     save_args(args, os.path.join(experiment_path, "args.txt"))
 
-
     # Device
     args.device = "cuda:0"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
