@@ -5,13 +5,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Arguments for dynamics learning')
 
     # architecture
-    parser.add_argument('-N', '--model_type',    type=str,        default='tcn')
-    parser.add_argument('--encoder_sizes',         type=list,     default='512,256,256')
-    parser.add_argument('--decoder_sizes',         type=list,     default='512,256,256')
-    parser.add_argument('--encoder_output',        type=str,      default='output')
-    parser.add_argument('--num_layers',            type=int,      default=4)
-    parser.add_argument('--kernel_size',           type=int,      default=2)
-    parser.add_argument('--dropout',               type=float,    default=0.1)
+    parser.add_argument('-N', '--model_type',      type=str,       default='lstm')
+    parser.add_argument('--encoder_sizes',         type=list,      default='512,256,256')
+    parser.add_argument('--decoder_sizes',         type=list,      default='512,256,256')
+    parser.add_argument('--encoder_output',        type=str,       default='output')
+    parser.add_argument('--num_layers',            type=int,       default=4)
+    parser.add_argument('--kernel_size',           type=int,       default=2)
+    parser.add_argument('--dropout',               type=float,     default=0.1)
 
     # training
     parser.add_argument('-r', '--run_id',          type=int,      default=1)

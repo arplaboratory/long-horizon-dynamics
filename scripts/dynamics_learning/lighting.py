@@ -72,9 +72,9 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         self.test_predictions = []
 
-    def forward(self, x):
+    def forward(self, x, init_memory):
         
-        x = self.model(x)
+        x = self.model(x, init_memory)
         
         return x
     
@@ -109,7 +109,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         batch_loss = 0.0
         for i in range(self.args.unroll_length):
-            y_hat = self.forward(x_curr)
+            y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
             y_gt = y[:, i, :self.output_size]
 
             loss = self.loss_fn(y_hat, y_gt)
