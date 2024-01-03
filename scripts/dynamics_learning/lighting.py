@@ -92,56 +92,51 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 'frequency': 1}])
 
     def training_step(self, train_batch, batch_idx):
-        x, y = train_batch
+        _, batch_loss = self.unroll_step(train_batch)
+
+        self.log("train_batch_loss", batch_loss, on_step=True, prog_bar=True, logger=True)
+
+        return batch_loss
+    
+    def unroll_step(self, batch):
+
+        x, y = batch
         x = x.float()
         y = y.float()
-        
-        y_hat = self.forward(x)
-        loss = self.loss_fn(y_hat, y)
 
-        self.log("train_loss", loss, on_step=True, prog_bar=True, logger=True)
+        x_curr = x 
+        preds = []
 
-        return loss
+        batch_loss = 0.0
+        for i in range(self.args.unroll_length):
+            y_hat = self.forward(x_curr)
+            y_gt = y[:, i, :self.output_size]
+
+            loss = self.loss_fn(y_hat, y_gt)
+            batch_loss += loss / self.args.unroll_length
+
+            if i < self.args.unroll_length - 1:
+                u_gt = y[:, i, self.output_size:]
+                x_curr = torch.cat((x_curr[:, 1:, :], 
+                                    torch.cat((y_hat, u_gt), dim=1).unsqueeze(1)), dim=1)
+            preds.append(y_hat)
+            
+        return preds, batch_loss
 
     def validation_step(self, valid_batch, batch_idx, dataloader_idx=0):
-        x, y = valid_batch
-        x = x.float()
-        y = y.float()
-
-        y_hat = self.forward(x)
-
-        loss = self.loss_fn(y_hat, y)
-            
-        self.log(f'val_loss', loss, on_epoch=True, prog_bar=True, logger=True)
-
-        if self.args.delta == True:
-            
-
-            linear_velocity_pred = x[:, -1, :3] + y_hat[:, :3] 
-            attitude_pred = y_hat[:, 3:7] * x[:, -1, 3:7]
-            angular_velocity_pred = x[:, -1, 7:10] + y_hat[:, 7:10]
-
-            linear_velocity_gt = x[:, -1, :3] + y[:, :3]
-            attitude_gt = y[:, 3:7] * x[:, -1, 3:7]
-
-            angular_velocity_gt = x[:, -1, 7:10] + y[:, 7:10]
-
-            # Update the output
-            y_hat_full = torch.cat((linear_velocity_pred, attitude_pred, angular_velocity_pred), dim=1)
-            y_full = torch.cat((linear_velocity_gt, attitude_gt, angular_velocity_gt), dim=1)
-            self.val_full_gt.append(y_full.detach().cpu().numpy())
-
-        self.val_predictions.append(y_hat_full.detach().cpu().numpy())
         
+        _, batch_loss = self.unroll_step(valid_batch)
+        self.log("valid_batch_loss", batch_loss, on_step=True, prog_bar=True, logger=True)
         
-        return loss
+        return batch_loss
     
     def test_step(self, test_batch, batch_idx, dataloader_idx=0):
         
-        # recursive predictions
-        if batch_idx == 0:
-            x, y = test_batch
+        _, batch_loss = self.unroll_step(test_batch)
+        self.log("test_batch_loss", batch_loss, on_step=True, prog_bar=True, logger=True)
 
+        return batch_loss
+            
     def on_train_epoch_start(self):
         pass
 

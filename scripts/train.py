@@ -27,7 +27,7 @@ def main(args):
 
     # Checkopoint 
     checkpoint_callback = pytorch_lightning.callbacks.ModelCheckpoint(
-        monitor="val_loss",
+        monitor="best_valid_loss",
         dirpath=os.path.join(experiment_path, "checkpoints"),
         filename="model-{epoch:02d}-{val_loss:.2f}",
         save_top_k=3,
@@ -47,7 +47,6 @@ def main(args):
         pin_memory=True,
     )
 
-
     valid_dataset, valid_loader = load_dataset(
         "validation",
         data_path + "valid/",
@@ -58,7 +57,7 @@ def main(args):
     )
 
     input_size = train_dataset.X_shape[2]
-    output_size = train_dataset.Y_shape[1]
+    output_size = train_dataset.state_len
 
     val_gt = valid_dataset.Y
     
@@ -89,9 +88,8 @@ def main(args):
     )
     if trainer.is_global_zero:
         wandb_logger.experiment.config.update(vars(args))
-    # trainer.validate(model, dataloaders=valid_loader)
+    trainer.validate(model, dataloaders=valid_loader)
     trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
-
 
 if __name__ == "__main__":
     # parse arguments
@@ -133,5 +131,3 @@ if __name__ == "__main__":
 
     # Train model
     main(args)
-
-    

@@ -33,11 +33,9 @@ class DynamicsDataset(Dataset):
 
     def __getitem__(self, idx):
            
-        if self.model_type == 'mlp':
-            x = self.X[idx, :, :].flatten('F')
-        else:
-            x = self.X[idx, :, :]
-        y = self.Y[idx, :]
+
+        x = self.X[idx, :, :]
+        y = self.Y[idx, :, :]
             
         return x, y
         

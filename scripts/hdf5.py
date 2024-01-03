@@ -33,45 +33,20 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
 
             data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
 
-            num_samples = data_np.shape[0] - history_length 
+            num_samples = data_np.shape[0] - history_length - unroll_length
 
             X = np.zeros((num_samples, history_length, data_np.shape[1]))
-            Y = np.zeros((num_samples, data_np.shape[1]-4))
+            Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
 
             for i in range(num_samples):
-                X[i, :, :] = data_np[i:i+history_length, :]
-                Y[i, :] = data_np[i+history_length, :-4]
-
-            # If delta is true, then the output is the difference between the current and previous state
-            if args.delta:
-                
-                delta_linear_velocity = Y[:, :3] - X[:, -1, :3]
-                delta_attitude = deltaQuaternion(X[:, -1, 3:7], Y[:, 3:7])
-                delta_angular_velocity = Y[:, 7:10] - X[:, -1, 7:10]
-
-                # Update the output
-                Y = np.hstack((delta_linear_velocity, delta_attitude, delta_angular_velocity))
+                X[i, :, :] =   data_np[i:i+history_length, :]
+                Y[i,:,:]   =   data_np[i+history_length: i+history_length+unroll_length,:data_np.shape[1]]
 
             all_X.append(X)
             all_Y.append(Y)
 
     X = np.concatenate(all_X, axis=0)
-    Y = np.concatenate(all_Y, axis=0)
-
-    # Normalize the output 
-    if args.normalize:
-        if train == True:
-            mean = np.mean(Y, axis=0)
-            std = np.std(Y, axis=0)
-
-            np.save(data_path + folder_name + 'mean_train.npy', mean)
-            np.save(data_path + folder_name + 'std_train.npy', std)
-        else:
-            mean = np.load(data_path + 'train/' + 'mean_train.npy')
-            std = np.load(data_path + 'train/' + 'std_train.npy')
-
-        Y = (Y - mean) / std
-    
+    Y = np.concatenate(all_Y, axis=0)    
         
     # save the data
     # Create the HDF5 file and datasets for inputs and outputs
@@ -83,7 +58,8 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
 
         outputs_data = hf.create_dataset('outputs', data=Y)
         outputs_data.dims[0].label = 'num_samples'
-        outputs_data.dims[1].label = 'features'
+        outputs_data.dims[1].label = 'unroll_length'
+        outputs_data.dims[2].label = 'features'
 
         # flush and close the file
         hf.flush()
