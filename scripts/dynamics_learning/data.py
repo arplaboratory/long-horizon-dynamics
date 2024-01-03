@@ -25,7 +25,7 @@ class DynamicsDataset(Dataset):
         self.Y_shape = self.Y.shape
         
         self.data_len = self.X_shape[0]
-        self.state_len = self.X_shape[2]
+        self.state_len = self.X_shape[2] - 4
 
     def __len__(self):
 
