@@ -57,7 +57,7 @@ def main(args):
     )
 
     input_size = train_dataset.X_shape[2]
-    output_size = train_dataset.state_len
+    output_size = 6
 
     val_gt = valid_dataset.Y
     

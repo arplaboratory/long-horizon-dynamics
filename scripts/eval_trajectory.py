@@ -52,8 +52,9 @@ OUTPUT_FEATURES = {
     "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
     "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"],
     "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"], 
+    "save": ["v_x", "v_y", "v_z", "w_x", "w_y", "w_z"],
     "title": ["Ground velocity u", "Ground velocity v", "Ground velocity w", "Ground angular velocity p", "Ground angular velocity q", "Ground angular velocity r"], 
-    "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "qx", "qy", "qz", "qw",  "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
+    # "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "qx", "qy", "qz", "qw",  "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
 }
 
 
@@ -63,59 +64,7 @@ def load_data(hdf5_path, hdf5_file):
         Y = hf['outputs'][:]
     return X, Y
 
-def Quaternion2Rotation(quaternion):
-    """
-    converts a quaternion attitude to a rotation matrix
-    """
-    e0 = quaternion[0]
-    e1 = quaternion[1]
-    e2 = quaternion[2]
-    e3 = quaternion[3]
 
-    R = torch.tensor([
-        [e1 ** 2.0 + e0 ** 2.0 - e2 ** 2.0 - e3 ** 2.0, 2.0 * (e1 * e2 - e3 * e0), 2.0 * (e1 * e3 + e2 * e0)],
-        [2.0 * (e1 * e2 + e3 * e0), e2 ** 2.0 + e0 ** 2.0 - e1 ** 2.0 - e3 ** 2.0, 2.0 * (e2 * e3 - e1 * e0)],
-        [2.0 * (e1 * e3 - e2 * e0), 2.0 * (e2 * e3 + e1 * e0), e3 ** 2.0 + e0 ** 2.0 - e1 ** 2.0 - e2 ** 2.0]
-    ])
-
-    R = R / torch.det(R)
-
-    r11 = R[0][0]
-    r12 = R[0][1]
-    r13 = R[0][2]
-    r21 = R[1][0]
-    r22 = R[1][1]
-    r23 = R[1][2]
-    r31 = R[2][0]
-    r32 = R[2][1]
-    r33 = R[2][2]
-
-    tmp = r11 + r22 + r33
-    if tmp > 0:
-        e0 = 0.5 * torch.sqrt(1 + tmp)
-    else:
-        e0 = 0.5 * torch.sqrt(((r12 - r21) ** 2 + (r13 - r31) ** 2 + (r23 - r32) ** 2) / (3 - tmp))
-
-    tmp = r11 - r22 - r33
-    if tmp > 0:
-        e1 = 0.5 * torch.sqrt(1 + tmp)
-    else:
-        e1 = 0.5 * torch.sqrt(((r12 + r21) ** 2 + (r13 + r31) ** 2 + (r23 - r32) ** 2) / (3 - tmp))
-
-    tmp = -r11 + r22 - r33
-    if tmp > 0:
-        e2 = 0.5 * torch.sqrt(1 + tmp)
-    else:
-        e2 = 0.5 * torch.sqrt(((r12 + r21) ** 2 + (r13 + r31) ** 2 + (r23 + r32) ** 2) / (3 - tmp))
-
-    tmp = -r11 - r22 + r33
-    if tmp > 0:
-        e3 = 0.5 * torch.sqrt(1 + tmp)
-    else:
-        e3 = 0.5 * torch.sqrt(((r12 - r21) ** 2 + (r13 + r31) ** 2 + (r23 + r32) ** 2) / (3 - tmp))
-
-    unit_quaternion = torch.tensor([e0, e1, e2, e3])
-    return unit_quaternion
 
 if __name__ == "__main__":
 
@@ -175,7 +124,7 @@ if __name__ == "__main__":
         resources_path,
         experiment_path,
         input_size=X.shape[-1],
-        output_size=X.shape[-1]-4,
+        output_size=6,
         valid_data=Y,
         max_iterations=1,
     )
@@ -191,13 +140,13 @@ if __name__ == "__main__":
     # std =  torch.from_numpy(np.load(data_path  + 'train/' + 'std_train.npy')).float().to(args.device)
 
     input_shape = (1, args.history_length, X.shape[-1])
-    output_shape = (1, X.shape[-1] - 4)
+    output_shape = (1, 6)
 
     input_tensor = X[0:args.history_length].reshape(input_shape)  
 
 
-    Y_plot = np.zeros((X.shape[0] - args.history_length,     X.shape[-1] - 4))
-    Y_hat_plot = np.zeros((X.shape[0] - args.history_length, X.shape[-1] - 4))
+    Y_plot = np.zeros((X.shape[0] - args.history_length,     6))
+    Y_hat_plot = np.zeros((X.shape[0] - args.history_length, 6))
 
     mse_loss = MSE()
     trajectory_loss = []
@@ -206,49 +155,43 @@ if __name__ == "__main__":
     with torch.no_grad():
        for i in range(args.history_length -1, X.shape[0]):
         
-            y_hat = model(input_tensor).view(output_shape) 
-
-            if args.delta:
-
-                linear_velocity_pred = input_tensor[:, -1, :3] + y_hat[:, :3] 
-                attitude_pred = y_hat[:, 3:7] * input_tensor[:, -1, 3:7]
-                angular_velocity_pred = input_tensor[:, -1, 7:10] + y_hat[:, 7:10]
-
-                # Update the output
-                y_hat = torch.cat((linear_velocity_pred, attitude_pred, angular_velocity_pred), dim=1)
+            y_hat = model(input_tensor, init_memory=True if i == 0 else False).view(output_shape) 
                 
-            # Normlaize the quaternion
-            qw = y_hat[:, 3]
-            qx = y_hat[:, 4]
-            qy = y_hat[:, 5]
-            qz = y_hat[:, 6]
+            linear_velocity_gt = Y[i, :3]
+            angular_velocity_gt = Y[i, 7:10]
+            quaternion_gt = Y[i, 3:7]
 
-            norm = torch.sqrt(qw ** 2 + qx ** 2 + qy ** 2 + qz ** 2).view(-1, 1)
-            y_hat[:, 3] = qw / norm
-            y_hat[:, 4] = qx / norm
-            y_hat[:, 5] = qy / norm
-            y_hat[:, 6] = qz / norm
-            
-            x_curr = torch.cat((y_hat, Y[i, -4:].unsqueeze(dim=0)), dim=1)
-            input_tensor = torch.cat((input_tensor[:, 1:, :], x_curr.view(1, 1, X.shape[-1])), dim=1)
+            linear_velocity_pred = y_hat[0, :3]
+            angular_velocity_pred = y_hat[0, 3:]
+
+            x_unroll_curr = torch.cat((linear_velocity_pred, quaternion_gt, angular_velocity_pred, Y[i, -4:]), dim=0)
+            input_tensor = torch.cat((input_tensor[:, 1:, :], x_unroll_curr.view(1, 1, x_unroll_curr.shape[0])), dim=1)
 
             if i < X.shape[0] :
 
-                Y_plot[i - args.history_length, :] = Y[i, :-4].cpu().numpy()
-                Y_hat_plot[i - args.history_length, :] = y_hat.cpu().numpy()
+                # get ground truth velocity and angular velocity
+                vel_gt = Y[i, :3].view((1, 3))
+                ang_vel_gt = Y[i, 7:10].view((1, 3))
 
+                linear_velocity_pred = y_hat[0, :3].view((1, 3))
+                angular_velocity_pred = y_hat[0, 3:].view((1, 3))
+
+                # cat vel_gt and ang_vel_gt for plotting
+                Y_plot[i - args.history_length, :] = torch.cat((vel_gt, ang_vel_gt), dim=1).cpu().numpy()
+                # Y_plot[i - args.history_length, :] = Y[i, :3].cpu().numpy()
+                Y_hat_plot[i - args.history_length, :] = torch.cat((linear_velocity_pred, angular_velocity_pred), dim=1).cpu().numpy()
                 # # PRINT mse loss
                 
                 # loss = mse_loss(y_hat, Y[i, :3].view(output_shape))
-                loss = mse_loss(y_hat, Y[i, :-4].view(output_shape))
+                loss = (mse_loss(linear_velocity_pred, vel_gt) + mse_loss(angular_velocity_pred, ang_vel_gt))
                 trajectory_loss.append(loss.item())
 
     
     # Consider only the first 100 predictions 
     
-    # Y_plot = Y_plot[:10, :]
-    # Y_hat_plot = Y_hat_plot[:10, :]
-    # trajectory_loss = trajectory_loss[:10]
+    Y_plot = Y_plot[:10, :]
+    Y_hat_plot = Y_hat_plot[:10, :]
+    trajectory_loss = trajectory_loss[:10]
 
 
     
@@ -320,7 +263,7 @@ if __name__ == "__main__":
 
 
     # Generate aesthetic plots and save them individually
-    for i in range(10):
+    for i in range(6):
         fig = plt.figure(figsize=(8, 6), dpi=400)
         plt.plot(Y_plot[:, i],     label="Ground Truth", color=colors[1], linewidth=4.5)
         plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
@@ -330,5 +273,5 @@ if __name__ == "__main__":
         plt.legend()
         plt.xlabel("No. of recursive predictions")
         plt.ylabel(OUTPUT_FEATURES["test"][i])
-        plt.savefig(experiment_path + "plots/trajectory/trajectory_" + OUTPUT_FEATURES['quaternion'][i] + ".png")
+        plt.savefig(experiment_path + "plots/trajectory/trajectory_" + OUTPUT_FEATURES['save'][i] + ".png")
         plt.close()
