@@ -110,15 +110,29 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         batch_loss = 0.0
         for i in range(self.args.unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
-            y_gt = y[:, i, :self.output_size]
+            # y_gt = y[:, i, :self.output_size]
 
-            loss = self.loss_fn(y_hat, y_gt)
+            linear_velocity_gt = y[:, i, :3]
+            angular_velocity_gt = y[:, i, 7:10]
+
+            velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
+
+            loss = self.loss_fn(y_hat, velocity_gt)
             batch_loss += loss / self.args.unroll_length
 
             if i < self.args.unroll_length - 1:
-                u_gt = y[:, i, self.output_size:]
-                x_curr = torch.cat((x_curr[:, 1:, :], 
-                                    torch.cat((y_hat, u_gt), dim=1).unsqueeze(1)), dim=1)
+                
+                linear_velocity_pred = y_hat[:, :3]
+                angular_velocity_pred = y_hat[:, 3:]
+
+                u_gt = y[:, i, -4:]
+                attitude_gt = y[:, i, 3:7]
+
+                # Update x_curr
+                x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
+              
+                x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
+                
             preds.append(y_hat)
             
         return preds, batch_loss
