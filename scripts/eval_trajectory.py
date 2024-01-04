@@ -57,13 +57,11 @@ OUTPUT_FEATURES = {
     # "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "qx", "qy", "qz", "qw",  "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
 }
 
-
 def load_data(hdf5_path, hdf5_file):
     with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 
         X = hf['inputs'][:]
         Y = hf['outputs'][:]
     return X, Y
-
 
 
 if __name__ == "__main__":
@@ -107,7 +105,7 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
  
     # create the dataset
-    X, Y = load_data(data_path + "test/", 'test_eval.h5')
+    X, Y = load_data(data_path + "test/", 'test.h5')
 
     # convert X and Y to tensors
     X = torch.from_numpy(X).float().to(args.device)
@@ -129,151 +127,191 @@ if __name__ == "__main__":
         max_iterations=1,
     )
 
-    # Load the model
+    # # Load the model
     checkpoint = torch.load(model_path)
     model.load_state_dict(checkpoint['state_dict'])
 
     model = model.to(args.device)
 
-    # load mean and std
-    # mean = torch.from_numpy(np.load(data_path  + 'train/' + 'mean_train.npy')).float().to(args.device)
-    # std =  torch.from_numpy(np.load(data_path  + 'train/' + 'std_train.npy')).float().to(args.device)
+    # # load mean and std
+    # # mean = torch.from_numpy(np.load(data_path  + 'train/' + 'mean_train.npy')).float().to(args.device)
+    # # std =  torch.from_numpy(np.load(data_path  + 'train/' + 'std_train.npy')).float().to(args.device)
 
     input_shape = (1, args.history_length, X.shape[-1])
     output_shape = (1, 6)
 
-    input_tensor = X[0:args.history_length].reshape(input_shape)  
-
-
-    Y_plot = np.zeros((X.shape[0] - args.history_length,     6))
-    Y_hat_plot = np.zeros((X.shape[0] - args.history_length, 6))
+    # Y_plot = np.zeros((X.shape[0] - args.history_length,     6))
+    # Y_hat_plot = np.zeros((X.shape[0] - args.history_length, 6))
 
     mse_loss = MSE()
-    trajectory_loss = []
+    sample_loss = []
 
     model.eval()
     with torch.no_grad():
-       for i in range(args.history_length -1, X.shape[0]):
         
-            y_hat = model(input_tensor, init_memory=True if i == 0 else False).view(output_shape) 
+        for i in tqdm(range(args.history_length, X.shape[0])):
+
+            x = X[i, :, :]
+            y = Y[i, :, :]
+
+            x = x.unsqueeze(0)
+            x_curr = x 
+            batch_loss = 0.0
+
+            mean_abs_error_per_sample = []
+
+            for j in range(args.unroll_length):
                 
-            linear_velocity_gt = Y[i, :3]
-            angular_velocity_gt = Y[i, 7:10]
-            quaternion_gt = Y[i, 3:7]
+                abs_error = []
 
-            linear_velocity_pred = y_hat[0, :3]
-            angular_velocity_pred = y_hat[0, 3:]
+                y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
+                # y_gt = y[:, i, :self.output_size]
+
+                linear_velocity_gt =  y[j, :3]
+                angular_velocity_gt = y[j, 7:10]
+
+                velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=0)
+
+                abs_error.append(torch.abs(y_hat - velocity_gt))
+
+                loss = mse_loss(y_hat, velocity_gt)
+                batch_loss += loss / args.unroll_length
 
 
-            x_unroll_curr = torch.cat((linear_velocity_pred, quaternion_gt, angular_velocity_pred, Y[i, -4:]), dim=0)
-            input_tensor = torch.cat((input_tensor[:, 1:, :], x_unroll_curr.view(1, 1, x_unroll_curr.shape[0])), dim=1)
+                if j < args.unroll_length - 1:
+                    
+                    linear_velocity_pred = y_hat[:, :3]
+                    angular_velocity_pred = y_hat[:, 3:]
 
-            if i < X.shape[0] :
+                    u_gt = y[j, -4:].unsqueeze(0)
+                    attitude_gt = y[j, 3:7].unsqueeze(0)
 
-                # get ground truth velocity and angular velocity
-                vel_gt = Y[i, :3].view((1, 3))
-                ang_vel_gt = Y[i, 7:10].view((1, 3))
-
-                linear_velocity_pred = y_hat[0, :3].view((1, 3))
-                angular_velocity_pred = y_hat[0, 3:].view((1, 3))
-
-                # cat vel_gt and ang_vel_gt for plotting
-                Y_plot[i - args.history_length, :] = torch.cat((vel_gt, ang_vel_gt), dim=1).cpu().numpy()
-                # Y_plot[i - args.history_length, :] = Y[i, :3].cpu().numpy()
-                Y_hat_plot[i - args.history_length, :] = torch.cat((linear_velocity_pred, angular_velocity_pred), dim=1).cpu().numpy()
-                # # PRINT mse loss
+                    # Update x_curr
+                    x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
                 
-                # loss = mse_loss(y_hat, Y[i, :3].view(output_shape))
-                loss = mse_loss(torch.cat((linear_velocity_pred, angular_velocity_pred), dim=1), 
-                                torch.cat((vel_gt, ang_vel_gt), dim=1))
-                trajectory_loss.append(loss.item())
+                    x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
 
+            mean_abs_error_per_sample.append(torch.mean(torch.cat(abs_error, dim=0), dim=0).cpu().numpy())
+
+            sample_loss.append(batch_loss.item())
+
+    # Print the mean_abs_error_per_sample over the entire test set
+    mean_abs_error_per_sample = np.array(mean_abs_error_per_sample)
+    print("Mean Absolute Error per sample: ", np.mean(mean_abs_error_per_sample, axis=0))
     
-    # Consider only the first 100 predictions 
-    
-    # Y_plot = Y_plot[:10, :]
-    # Y_hat_plot = Y_hat_plot[:10, :]
-    # trajectory_loss = trajectory_loss[:10]
-
-
-    
-    mean_loss = np.mean(trajectory_loss)
-    print("MSE Loss: ", mean_loss)
-    
-    # Y_plot = Y_plot[::50, :]
-    # Y_hat_plot = Y_hat_plot[::50, :]
-
-
-    ### Plot and Save MSE loss as a histogram
+    # Plot sample loss as bar plot over every sample 
     fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
-    ax.hist(trajectory_loss, bins=30, color='skyblue', alpha=0.7, edgecolor='black')
+    ax.bar(np.arange(len(sample_loss)), sample_loss, color='skyblue', alpha=0.7, edgecolor='black')
 
-    ax.set_xlabel("MSE Loss")
-    ax.set_ylabel("Frequency")
-    ax.set_title("Distribution of MSE Loss")
+    ax.set_xlabel("Sample")
+    ax.set_ylabel("MSE Loss")
+    # Set title with the unroll length
+    ax.set_title(f"MSE Loss over {args.unroll_length} Recursive Predictions")
 
     # Adding gridlines
     ax.grid(axis='y', linestyle='--', alpha=0.7)
-
+    
     # Customize ticks and labels
     ax.tick_params(axis='both', which='major', labelsize=10)
     ax.tick_params(axis='x', rotation=45)
 
     # Save the plot
     plt.tight_layout(pad=1.5)
-    plt.savefig(experiment_path + "plots/trajectory/eval_mse_histogram.png")
+    plt.savefig(experiment_path + "plots/trajectory/eval_mse_sample_loss.png")
     plt.close()
 
-    ### Plot and Save MSE loss over no. of recursions
     
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
-    ax.plot(trajectory_loss, color='skyblue', linewidth=2.5, label='MSE Loss')
-
-    # Plot mean loss line
-    ax.axhline(y=mean_loss, label="Mean Loss", color='orange', linestyle=line_styles[1], linewidth=2.5)
-
-    # Print mean and variance on the plot
-    # ax.text(0.80, 0.9, f"Mean Loss: {mean_loss:.3f}", transform=ax.transAxes)
-    # ax.text(0.80, 0.85, f"Variance: {np.var(trajectory_loss):.3f}", transform=ax.transAxes)
-
-    ax.set_xlabel("No. of Recursive Predictions")
-    ax.set_ylabel("MSE Loss")
-    ax.set_title("MSE Loss Analysis")
-    ax.legend()
-
-    # Save the plot
-    plt.tight_layout(pad=1.5)
-    plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
-    plt.close()
-
-    ### Plot and Save MSE loss as a boxplot 
-
-    plt.figure(figsize=(8, 6))
-    sns.boxplot(y=trajectory_loss, color='skyblue')
-    plt.xlabel("MSE Loss")
-    plt.title("Distribution of MSE Loss")
-    plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss_boxplot.png")
-    plt.close()
-
-    ### Plot and Save MSE loss as a density plot 
-    plt.figure(figsize=(8, 6))
-    sns.kdeplot(data=trajectory_loss, shade=True, color='skyblue')
-    plt.xlabel("MSE Loss")
-    plt.title("Density Plot of MSE Loss")
-    plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss_density.png")
-    plt.close()
+    # # Consider only the first 100 predictions 
+    # num_predictions = 100  
+    # Y_plot = Y_plot[:num_predictions, :]
+    # Y_hat_plot = Y_hat_plot[:num_predictions, :]
+    # trajectory_loss = trajectory_loss[:num_predictions]
 
 
-    # Generate aesthetic plots and save them individually
-    for i in range(6):
-        fig = plt.figure(figsize=(8, 6), dpi=400)
-        plt.plot(Y_plot[:, i],     label="Ground Truth", color=colors[1], linewidth=4.5)
-        plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
+    
+    # mean_loss = np.mean(trajectory_loss)
+    # print("MSE Loss: ", mean_loss)
+    
+    # # Y_plot = Y_plot[::50, :]
+    # # Y_hat_plot = Y_hat_plot[::50, :]
+
+
+    # ### Plot and Save MSE loss as a histogram
+    # fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+    # ax.hist(trajectory_loss, bins=30, color='skyblue', alpha=0.7, edgecolor='black')
+
+    # ax.set_xlabel("MSE Loss")
+    # ax.set_ylabel("Frequency")
+    # ax.set_title("Distribution of MSE Loss")
+
+    # # Adding gridlines
+    # ax.grid(axis='y', linestyle='--', alpha=0.7)
+
+    # # Customize ticks and labels
+    # ax.tick_params(axis='both', which='major', labelsize=10)
+    # ax.tick_params(axis='x', rotation=45)
+
+    # # Save the plot
+    # plt.tight_layout(pad=1.5)
+    # plt.savefig(experiment_path + "plots/trajectory/eval_mse_histogram.png")
+    # plt.close()
+
+    # ### Plot and Save MSE loss over no. of recursions
+    
+    # fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+    # ax.plot(trajectory_loss, color='skyblue', linewidth=2.5, label='MSE Loss')
+
+    # # Plot mean loss line
+    # ax.axhline(y=mean_loss, label="Mean Loss", color='orange', linestyle=line_styles[1], linewidth=2.5)
+
+    # # Print mean and variance on the plot
+    # # ax.text(0.80, 0.9, f"Mean Loss: {mean_loss:.3f}", transform=ax.transAxes)
+    # # ax.text(0.80, 0.85, f"Variance: {np.var(trajectory_loss):.3f}", transform=ax.transAxes)
+
+    # ax.set_xlabel("No. of Recursive Predictions")
+    # ax.set_ylabel("MSE Loss")
+    # ax.set_title("MSE Loss Analysis")
+    # ax.legend()
+
+    # # Save the plot
+    # plt.tight_layout(pad=1.5)
+    # plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
+    # plt.close()
+
+    # ### Plot and Save MSE loss as a boxplot 
+
+    # plt.figure(figsize=(8, 6))
+    # sns.boxplot(y=trajectory_loss, color='skyblue')
+    # plt.xlabel("MSE Loss")
+    # plt.title("Distribution of MSE Loss")
+    # plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss_boxplot.png")
+    # plt.close()
+
+    # ### Plot and Save MSE loss as a density plot 
+    # plt.figure(figsize=(8, 6))
+    # sns.kdeplot(data=trajectory_loss, shade=True, color='skyblue')
+    # plt.xlabel("MSE Loss")
+    # plt.title("Density Plot of MSE Loss")
+    # plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss_density.png")
+    # plt.close()
+
+
+    # # Generate aesthetic plots and save them individually
+    # for i in range(6):
+    #     fig = plt.figure(figsize=(8, 6), dpi=400)
+
+    #     # Zoom out the plot
+    #     # plt.xlim(-5, 105)
+    #     plt.ylim(-1.0, 1.5)
+
+    #     # Plot ground truth and predictions
+    #     plt.plot(Y_plot[:, i], label="Ground Truth", color=colors[1], linewidth=4.5)
+    #     plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
         
-        plt.grid(True)  # Add gridlines
-        plt.tight_layout(pad=1.5)
-        plt.legend()
-        plt.xlabel("No. of recursive predictions")
-        plt.ylabel(OUTPUT_FEATURES["test"][i])
-        plt.savefig(experiment_path + "plots/trajectory/trajectory_" + OUTPUT_FEATURES['save'][i] + ".png")
-        plt.close()
+    #     plt.grid(True)  # Add gridlines
+    #     plt.tight_layout(pad=1.5)
+    #     plt.legend()
+    #     plt.xlabel("No. of recursive predictions")
+    #     plt.ylabel(OUTPUT_FEATURES["test"][i])
+    #     plt.savefig(experiment_path + "plots/trajectory/trajectory_" + OUTPUT_FEATURES['save'][i] + ".png")
+    #     plt.close()

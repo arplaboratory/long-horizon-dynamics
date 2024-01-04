@@ -13,7 +13,7 @@ def csv_to_hdf5(args, data_path):
     hdf5(data_path, 'train/', 'train.h5',  args.attitude,  args.history_length, args.unroll_length)
     hdf5(data_path, 'valid/', 'valid.h5',  args.attitude,  args.history_length, args.unroll_length, train=False)
     hdf5(data_path, 'test/',  'test.h5',   args.attitude,  args.history_length, args.unroll_length, train=False)
-    hdf5_recursive(data_path, 'test/',  'test_eval.h5')
+    # hdf5_recursive(data_path, 'test/',  'test_eval.h5')
 
 def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_length, train=True):
 
@@ -141,20 +141,20 @@ if __name__ == "__main__":
     csv_to_hdf5(args, data_path)
 
 
-    X, Y = load_hdf5(data_path + 'test/', 'test.h5')
-    print(X.shape, Y.shape)
-
-    print(Y[:2, :])
+    X, Y = load_hdf5(data_path + 'train/', 'train.h5')
+    
 
 
-    # MSE for each of the output features
-    print("MSE")
-    print(np.mean(np.square(Y), axis=0))
+    ############## Data Analysis ##############
 
-    # print varience 
-    print("Varience")
-    print(np.var(Y, axis=0))
+    # Absolute difference between the last state of the input and the output
+    print("Absolute difference between the last state of the input and the output")
+    print(np.mean(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
 
+    # Varience 
+    print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
+
+    
 
 
     # print("Min and Max values for each of the output features")
