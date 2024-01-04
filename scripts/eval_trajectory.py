@@ -164,6 +164,7 @@ if __name__ == "__main__":
             linear_velocity_pred = y_hat[0, :3]
             angular_velocity_pred = y_hat[0, 3:]
 
+
             x_unroll_curr = torch.cat((linear_velocity_pred, quaternion_gt, angular_velocity_pred, Y[i, -4:]), dim=0)
             input_tensor = torch.cat((input_tensor[:, 1:, :], x_unroll_curr.view(1, 1, x_unroll_curr.shape[0])), dim=1)
 
@@ -183,15 +184,16 @@ if __name__ == "__main__":
                 # # PRINT mse loss
                 
                 # loss = mse_loss(y_hat, Y[i, :3].view(output_shape))
-                loss = (mse_loss(linear_velocity_pred, vel_gt) + mse_loss(angular_velocity_pred, ang_vel_gt))
+                loss = mse_loss(torch.cat((linear_velocity_pred, angular_velocity_pred), dim=1), 
+                                torch.cat((vel_gt, ang_vel_gt), dim=1))
                 trajectory_loss.append(loss.item())
 
     
     # Consider only the first 100 predictions 
     
-    Y_plot = Y_plot[:10, :]
-    Y_hat_plot = Y_hat_plot[:10, :]
-    trajectory_loss = trajectory_loss[:10]
+    # Y_plot = Y_plot[:10, :]
+    # Y_hat_plot = Y_hat_plot[:10, :]
+    # trajectory_loss = trajectory_loss[:10]
 
 
     

@@ -73,10 +73,14 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.test_predictions = []
 
     def forward(self, x, init_memory):
+
+        y_hat = self.model(x, init_memory) 
+
+        # Add predicted delta linear velocity and angular velocity
+        y_hat[:, :3] = y_hat[:, :3] + x[:, -1, :3]
+        y_hat[:, 3:] = y_hat[:, 3:] + x[:, -1, 7:10]
         
-        x = self.model(x, init_memory)
-        
-        return x
+        return y_hat
     
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(params=self.parameters(), betas=(self.adam_beta1, self.adam_beta2), eps=self.adam_eps,
@@ -112,7 +116,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
             # y_gt = y[:, i, :self.output_size]
 
-            linear_velocity_gt = y[:, i, :3]
+            linear_velocity_gt =  y[:, i, :3]
             angular_velocity_gt = y[:, i, 7:10]
 
             velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
