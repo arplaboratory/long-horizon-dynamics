@@ -1,9 +1,10 @@
 #!/bin/bash
-#                  R   B        model_type     encoder_dim  
-sbatch job.sbatch  0   65536           mlp             256                 
-sbatch job.sbatch  1   65536          lstm             256            
-sbatch job.sbatch  2   65536           gru             256              
-sbatch job.sbatch  3   65536           tcn             256   
-sbatch job.sbatch  4   32768   transformer             256            
-
-       
+#                  R   B        model_type     unroll_length  
+sbatch job.sbatch  0   512           tcn             20                 
+sbatch job.sbatch  1   512           tcn             25
+sbatch job.sbatch  2   512           tcn             30
+sbatch job.sbatch  3   512           tcn             35
+sbatch job.sbatch  4   512           gru             20                
+sbatch job.sbatch  5   512           gru             25
+sbatch job.sbatch  6   512           gru             30
+sbatch job.sbatch  7   512           gru             35       

@@ -3,7 +3,7 @@
 R=$1
 B=$2
 model_type=$3
-encoder_dim=$4
+unroll_length=$4
 
 temp_script=$(mktemp /tmp/train_script.XXXXXX)
 cat <<EOT > $temp_script
@@ -21,7 +21,7 @@ cat <<EOT > $temp_script
 singularity exec --nv \
 --overlay /scratch/pr2257/arpl/keypoints_ws/overlay-50G-10M.ext3:ro \
 /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif \
-/bin/bash -c "source /ext3/env.sh; conda activate fw_env; cd ../; python train.py -r $R -b $B --model_type $model_type --encoder_dim $encoder_dim"
+/bin/bash -c "source /ext3/env.sh; conda activate fw_env; cd ../; python train.py -r $R -b $B --model_type $model_type --unroll_length $unroll_length"
 EOT
 
 sbatch $temp_script
