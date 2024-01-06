@@ -146,6 +146,8 @@ if __name__ == "__main__":
     mse_loss = MSE()
     sample_loss = []
 
+    copounding_error_per_sample = []
+
     model.eval()
     with torch.no_grad():
         
@@ -158,12 +160,13 @@ if __name__ == "__main__":
             x_curr = x 
             batch_loss = 0.0
 
-            mean_abs_error_per_sample = []
+            mean_abs_error_per_sample = []              
+            abs_error = []
+
+            compounding_error = []
 
             for j in range(args.unroll_length):
                 
-                abs_error = []
-
                 y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
                 # y_gt = y[:, i, :self.output_size]
 
@@ -177,6 +180,7 @@ if __name__ == "__main__":
                 loss = mse_loss(y_hat, velocity_gt)
                 batch_loss += loss / args.unroll_length
 
+                compounding_error.append(loss.item())
 
                 if j < args.unroll_length - 1:
                     
@@ -192,8 +196,35 @@ if __name__ == "__main__":
                     x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
 
             mean_abs_error_per_sample.append(torch.mean(torch.cat(abs_error, dim=0), dim=0).cpu().numpy())
-
             sample_loss.append(batch_loss.item())
+            copounding_error_per_sample.append(compounding_error)
+
+    #################################################################################################################################################
+    copounding_error_per_sample = np.array(copounding_error_per_sample)
+    print("Mean Copounding Error per sample: ", np.mean(copounding_error_per_sample, axis=0))
+    # Print varience of copounding error per sample
+    print("Variance Copounding Error per sample: ", np.var(copounding_error_per_sample, axis=0))
+    # Mean and overlay variance of copounding error per sample over number of recursions
+    mean_copounding_error_per_sample = np.mean(copounding_error_per_sample, axis=0)
+    var_copounding_error_per_sample = np.var(copounding_error_per_sample, axis=0)
+
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+    ax.plot(mean_copounding_error_per_sample, color='skyblue', linewidth=2.5, label='Mean Copounding Error')
+    ax.fill_between(np.arange(len(mean_copounding_error_per_sample)), mean_copounding_error_per_sample - var_copounding_error_per_sample, 
+                    mean_copounding_error_per_sample + var_copounding_error_per_sample, alpha=0.5, color='skyblue', 
+                    label='Variance Copounding Error')
+
+    ax.set_xlabel("No. of Recursive Predictions")
+    ax.set_ylabel("MSE")
+    ax.set_title("MSE Analysis over Recursive Predictions")
+    ax.legend()
+
+    # Save the plot
+    plt.tight_layout(pad=1.5)
+    plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
+    plt.close()
+
+    #################################################################################################################################################
 
     # Print the mean_abs_error_per_sample over the entire test set
     mean_abs_error_per_sample = np.array(mean_abs_error_per_sample)
@@ -204,9 +235,9 @@ if __name__ == "__main__":
     ax.bar(np.arange(len(sample_loss)), sample_loss, color='skyblue', alpha=0.7, edgecolor='black')
 
     ax.set_xlabel("Sample")
-    ax.set_ylabel("MSE Loss")
+    ax.set_ylabel("MSE")
     # Set title with the unroll length
-    ax.set_title(f"MSE Loss over {args.unroll_length} Recursive Predictions")
+    ax.set_title(f"MSE over {args.unroll_length} Recursive Predictions")
 
     # Adding gridlines
     ax.grid(axis='y', linestyle='--', alpha=0.7)
@@ -220,7 +251,9 @@ if __name__ == "__main__":
     plt.savefig(experiment_path + "plots/trajectory/eval_mse_sample_loss.png")
     plt.close()
 
-    
+    #################################################################################################################################################
+
+
     # # Consider only the first 100 predictions 
     # num_predictions = 100  
     # Y_plot = Y_plot[:num_predictions, :]
