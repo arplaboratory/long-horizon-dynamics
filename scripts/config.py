@@ -5,7 +5,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Arguments for dynamics learning')
 
     # architecture
-    parser.add_argument('-N', '--model_type',      type=str,       default='tcn')
+    parser.add_argument('-N', '--model_type',      type=str,       default='gru')
     parser.add_argument('--encoder_sizes',         type=list,      default='512,256,256')
     parser.add_argument('--decoder_sizes',         type=list,      default='512,256,256')
     parser.add_argument('--encoder_output',        type=str,       default='output')
@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument('-d', '--gpu_id',          type=int,      default=0)
     parser.add_argument('--num_devices',           type=int,      default=1)
     parser.add_argument('-e', '--epochs',          type=int,      default=50000)
-    parser.add_argument('-b', '--batch_size',      type=int,      default=128)
+    parser.add_argument('-b', '--batch_size',      type=int,      default=1024)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=False)
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('--seed',                  type=int,      default=10)

@@ -76,9 +76,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         y_hat = self.model(x, init_memory) 
 
-        # Add predicted delta linear velocity and angular velocity
-        y_hat[:, :3] = y_hat[:, :3] + x[:, -1, :3]
-        y_hat[:, 3:] = y_hat[:, 3:] + x[:, -1, 7:10]
+        # Multiply predicted delta quaternion to the previous quaternion
+        # y_hat is delta quaternion 
+        if self.args.delta == True:
+            y_hat = self.quaternion_product(y_hat, x[:, -1, 3:7])
         
         return y_hat
     
@@ -114,32 +115,41 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         batch_loss = 0.0
         for i in range(self.args.unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
-            # y_gt = y[:, i, :self.output_size]
+            quaternion_gt = y[:, i, 3:7]
 
-            linear_velocity_gt =  y[:, i, :3]
-            angular_velocity_gt = y[:, i, 7:10]
-
-            velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
-
-            loss = self.loss_fn(y_hat, velocity_gt)
+            loss = self.loss_fn(y_hat, quaternion_gt)
             batch_loss += loss / self.args.unroll_length
 
             if i < self.args.unroll_length - 1:
                 
-                linear_velocity_pred = y_hat[:, :3]
-                angular_velocity_pred = y_hat[:, 3:]
-
                 u_gt = y[:, i, -4:]
-                attitude_gt = y[:, i, 3:7]
+                linear_velocity_gt = y[:, i, :3]
+                angular_velocity_gt = y[:, i, 7:10]
 
                 # Update x_curr
-                x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
+                x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
               
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
                 
             preds.append(y_hat)
             
         return preds, batch_loss
+    
+    def quaternion_product(self, delta_q, q):
+        """
+        Multiply delta quaternion to the previous quaternion.
+        """
+        
+        q = q.unsqueeze(-1)
+        delta_q = delta_q.unsqueeze(-1)
+        
+        # Compute the quaternion product
+        q_hat = torch.cat((delta_q[:, :, 0] * q[:, :, 0] - delta_q[:, :, 1] * q[:, :, 1] - delta_q[:, :, 2] * q[:, :, 2] - delta_q[:, :, 3] * q[:, :, 3],
+                           delta_q[:, :, 0] * q[:, :, 1] + delta_q[:, :, 1] * q[:, :, 0] + delta_q[:, :, 2] * q[:, :, 3] - delta_q[:, :, 3] * q[:, :, 2],
+                           delta_q[:, :, 0] * q[:, :, 2] - delta_q[:, :, 1] * q[:, :, 3] + delta_q[:, :, 2] * q[:, :, 0] + delta_q[:, :, 3] * q[:, :, 1],
+                           delta_q[:, :, 0] * q[:, :, 3] + delta_q[:, :, 1] * q[:, :, 2] - delta_q[:, :, 2] * q[:, :, 1] + delta_q[:, :, 3] * q[:, :, 0]), dim=-1)
+        
+        return q_hat.squeeze(-1)
 
     def validation_step(self, valid_batch, batch_idx, dataloader_idx=0):
         
