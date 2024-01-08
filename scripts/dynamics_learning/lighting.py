@@ -32,8 +32,8 @@ line_styles = ['-', '--', '-.', ':', '-', '--']
 
 
 OUTPUT_FEATURES = {
-    "discrete": ["v_x", "v_y", "v_z", "q_w", "q_x", "q_y", "q_z", "w_x", "w_y", "w_z", "u_0", "u_1", "u_2", "u_3"],
-    "label": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "q_w", "q_x", "q_y", "q_z", "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
+    "discrete": ["q_w", "q_x", "q_y", "q_z"],
+    "label": ["q_w", "q_x", "q_y", "q_z"],
 }
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
@@ -144,17 +144,20 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         delta_q = delta_q.unsqueeze(-1)
         
         # Compute the quaternion product
-        q_hat = torch.cat((delta_q[:, :, 0] * q[:, :, 0] - delta_q[:, :, 1] * q[:, :, 1] - delta_q[:, :, 2] * q[:, :, 2] - delta_q[:, :, 3] * q[:, :, 3],
-                           delta_q[:, :, 0] * q[:, :, 1] + delta_q[:, :, 1] * q[:, :, 0] + delta_q[:, :, 2] * q[:, :, 3] - delta_q[:, :, 3] * q[:, :, 2],
-                           delta_q[:, :, 0] * q[:, :, 2] - delta_q[:, :, 1] * q[:, :, 3] + delta_q[:, :, 2] * q[:, :, 0] + delta_q[:, :, 3] * q[:, :, 1],
-                           delta_q[:, :, 0] * q[:, :, 3] + delta_q[:, :, 1] * q[:, :, 2] - delta_q[:, :, 2] * q[:, :, 1] + delta_q[:, :, 3] * q[:, :, 0]), dim=-1)
+        q_hat = torch.cat((delta_q[:, 0] * q[:, 0] - delta_q[:, 1] * q[:, 1] - delta_q[:, 2] * q[:, 2] - delta_q[:, 3] * q[:, 3],
+                           delta_q[:, 0] * q[:, 1] + delta_q[:, 1] * q[:, 0] + delta_q[:, 2] * q[:, 3] - delta_q[:, 3] * q[:, 2],
+                           delta_q[:, 0] * q[:, 2] - delta_q[:, 1] * q[:, 3] + delta_q[:, 2] * q[:, 0] + delta_q[:, 3] * q[:, 1],
+                           delta_q[:, 0] * q[:, 3] + delta_q[:, 1] * q[:, 2] - delta_q[:, 2] * q[:, 1] + delta_q[:, 3] * q[:, 0]), dim=-1)
         
         return q_hat.squeeze(-1)
 
     def validation_step(self, valid_batch, batch_idx, dataloader_idx=0):
         
-        _, batch_loss = self.unroll_step(valid_batch)
+        preds, batch_loss = self.unroll_step(valid_batch)
         self.log("valid_batch_loss", batch_loss, on_step=True, prog_bar=True, logger=True)
+
+        y_hat = preds[0]
+        self.val_predictions.append(y_hat.detach().cpu().numpy())
         
         return batch_loss
     
@@ -162,6 +165,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         
         _, batch_loss = self.unroll_step(test_batch)
         self.log("test_batch_loss", batch_loss, on_step=True, prog_bar=True, logger=True)
+
 
         return batch_loss
             
@@ -206,7 +210,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             Y_gt = self.val_gt
 
         # Plot predictions and ground truth
-        for i in range(Y_gt.shape[1]):
+        for i in range(4):
             fig = plt.figure(figsize=(8, 6), dpi=400)
             plt.plot(val_predictions[:, i], label="Ground Truth", color=colors[1], linewidth=4.5)
             plt.plot(Y_gt[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])

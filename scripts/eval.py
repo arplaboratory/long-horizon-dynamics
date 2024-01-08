@@ -36,7 +36,7 @@ def main(args):
     )
 
     input_size = test_dataset.X_shape[2]
-    output_size = test_dataset.Y_shape[1]
+    output_size = 4
 
     test_gt = test_dataset.Y
     
@@ -102,6 +102,9 @@ if __name__ == "__main__":
     print(experiment_path)
     print("Testing Dynamics model:", model_path)
     args = load_args(experiment_path + "args.txt")
+
+    # Set unroll length to 1
+    args.unroll_length = 1
     
 
     # Device

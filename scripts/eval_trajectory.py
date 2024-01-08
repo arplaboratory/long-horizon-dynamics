@@ -133,6 +133,7 @@ if __name__ == "__main__":
     sample_loss = []
 
     copounding_error_per_sample = []
+    mean_abs_error_per_sample = []  
 
     model.eval()
     with torch.no_grad():
@@ -146,7 +147,7 @@ if __name__ == "__main__":
             x_curr = x 
             batch_loss = 0.0
 
-            mean_abs_error_per_sample = []              
+                        
             abs_error = []
 
             compounding_error = []
@@ -155,6 +156,9 @@ if __name__ == "__main__":
                 
                 y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
 
+                # Normalize the quaternion
+                y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
+                
                 attitude_gt = y[j, 3:7]
 
                 abs_error.append(torch.abs(y_hat - attitude_gt))
