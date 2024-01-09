@@ -13,6 +13,7 @@ import seaborn as sns
 from config import parse_args, load_args
 from dynamics_learning.loss import MSE
 from dynamics_learning.lighting import DynamicsLearning
+from copy import deepcopy
 
 plt.rcParams["figure.figsize"] = (19.20, 10.80)
 # font = {"family" : "sans",
@@ -53,6 +54,49 @@ def load_data(hdf5_path, hdf5_file):
         Y = hf['outputs'][:]
     return X, Y
 
+
+
+def quaternion_difference(q_pred, q_gt):
+
+    # Compute the difference between two quaternions
+    # Input: q_pred = [q_w, q_x, q_y, q_z]
+    #        q_gt   = [q_w, q_x, q_y, q_z]
+
+    # Compute the norm of the quaternion
+    norm_q_pred = torch.norm(q_pred, dim=1, keepdim=True) 
+    norm_q_gt = torch.norm(q_gt, dim=1, keepdim=True) 
+
+    # Normalize the quaternion
+    q_pred = q_pred / norm_q_pred
+    q_gt = q_gt / norm_q_gt
+
+    # q_pred inverse
+    q_pred_inv = torch.cat((q_pred[:, 0:1], -q_pred[:, 1:]), dim=1)
+
+    # Compute the difference between the two quaternions
+    q_diff = q_gt * q_pred_inv
+
+    return q_diff
+
+def quaternion_log(q):
+        
+        # Compute the log of a quaternion
+        # Input: q = [q_w, q_x, q_y, q_z]
+        
+        # Compute the norm of the quaternion
+        
+        norm_q = torch.norm(q, dim=1, keepdim=True) 
+        
+        # Get vector part of the quaternion
+        q_v = q[:, 1:]
+        
+        # Compute the angle of rotation
+        theta = 2 * torch.atan2(norm_q, q[:, 0:1])
+        
+        # COmpute the log of the quaternion
+        q_log = theta * q_v / norm_q
+        
+        return q_log
 
 if __name__ == "__main__":
 
@@ -155,18 +199,21 @@ if __name__ == "__main__":
             for j in range(args.unroll_length):
                 
                 y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
+                attitude_gt = y[j, 3:7]
+            
+
+                q_error = quaternion_difference(y_hat, attitude_gt.unsqueeze(0))
+                q_error_log = quaternion_log(q_error)
+
+
+                abs_error.append(torch.norm(q_error_log, dim=1, keepdim=True))
+                
+                loss = torch.norm(q_error_log, dim=1, keepdim=False)[0] #mse_loss(q_error_log)
+                batch_loss += loss / args.unroll_length
+                compounding_error.append(loss.cpu().numpy())
 
                 # Normalize the quaternion
                 y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
-                
-                attitude_gt = y[j, 3:7]
-
-                abs_error.append(torch.abs(y_hat - attitude_gt))
-
-                loss = mse_loss(y_hat, attitude_gt)
-                batch_loss += loss / args.unroll_length
-
-                compounding_error.append(loss.item())
 
                 if j < args.unroll_length - 1:
                     
