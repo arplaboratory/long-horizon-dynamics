@@ -8,6 +8,50 @@ from dynamics_learning.utils import Quaternion2Euler, Quaternion2Rotation, delta
 from config import parse_args
 
 
+def quaternion_log(q):
+    
+        # Compute the log of a quaternion
+        # Input: q = [q_w, q_x, q_y, q_z]
+    
+        # Compute the norm of the quaternion
+    
+        norm_q = np.linalg.norm(q, axis=1, keepdims=True) 
+    
+        # Get vector part of the quaternion
+        q_v = q[:, 1:]
+    
+        # Compute the angle of rotation
+        theta = 2 * np.arctan2(norm_q, q[:, 0:1])
+    
+        # COmpute the log of the quaternion
+        q_log = theta * q_v / norm_q
+    
+        return q_log
+
+def quaternion_difference(q_t1, q_t0):
+
+    # Compute the rotation q that takes q_t0 to q_t1
+    # Input: q_t1 = [q_w, q_x, q_y, q_z]
+    #        q_t0 = [q_w, q_x, q_y, q_z]
+
+    # Compute the norm of the quaternion
+    norm_q_t1 = np.linalg.norm(q_t1, axis=1, keepdims=True)
+    norm_q_t0 = np.linalg.norm(q_t0, axis=1, keepdims=True)
+
+    # Normalize the quaternion
+    q_t1 = q_t1 / norm_q_t1
+    q_t0 = q_t0 / norm_q_t0
+
+    # q_t0 inverse
+    q_t0_inv = np.concatenate((q_t0[:, 0:1], -q_t0[:, 1:]), axis=1)
+
+    # Compute the difference between the two quaternions
+    q_diff = q_t1 * q_t0_inv
+
+    return q_diff
+
+    
+
 def csv_to_hdf5(args, data_path):
 
     hdf5(data_path, 'train/', 'train.h5',  args.attitude,  args.history_length, args.unroll_length)
@@ -148,14 +192,30 @@ if __name__ == "__main__":
     ############## Data Analysis ##############
 
     # Absolute difference between the last state of the input and the output
-    print("Absolute difference between the last state of the input and the output")
-    print(np.mean(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
+    # print("Absolute difference between the last state of the input and the output")
+    # print(np.mean(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
 
-    # Varience 
-    print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
+    # # Varience 
+    # print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
 
+
+    # Get quaternion between the last state of the input and the output
+    # print("Quaternion between the last state of the input and the output")
+
+    abs_diff = []
+    for i in range(X.shape[0]):
+        q_t0 = X[i, -1, 3:7]
+        q_t1 = Y[i, 0, 3:7]
+        
+        q_diff = quaternion_difference(np.expand_dims(q_t1, axis=0), np.expand_dims(q_t0, axis=0))
+
+        q_diff_log = quaternion_log(q_diff)
+
+        abs_diff.append(np.linalg.norm(q_diff_log, axis=1))
     
-
+    abs_diff = np.array(abs_diff)
+    print(np.mean(abs_diff, axis=0))
+    print(np.var(abs_diff, axis=0))
 
     # print("Min and Max values for each of the output features")
     # print("Minimum")
