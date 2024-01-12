@@ -54,7 +54,22 @@ def load_data(hdf5_path, hdf5_file):
         Y = hf['outputs'][:]
     return X, Y
 
+def quaternion_product(q1, q2):
+    
+        # Compute the product of two quaternions
+        # Input: q1 = [q_w, q_x, q_y, q_z]
+        #        q2 = [q_w, q_x, q_y, q_z]
+    
+        w1, x1, y1, z1 = q1[:, 0:1], q1[:, 1:2], q1[:, 2:3], q1[:, 3:]
+        w2, x2, y2, z2 = q2[:, 0:1], q2[:, 1:2], q2[:, 2:3], q2[:, 3:]
 
+        # Compute the product of the two quaternions
+        q_prod = torch.cat((w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+                            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2), dim=1)
+        
+        return q_prod
 
 def quaternion_difference(q_pred, q_gt):
 
@@ -74,7 +89,7 @@ def quaternion_difference(q_pred, q_gt):
     q_pred_inv = torch.cat((q_pred[:, 0:1], -q_pred[:, 1:]), dim=1)
 
     # Compute the difference between the two quaternions
-    q_diff = q_gt * q_pred_inv
+    q_diff = quaternion_product(q_gt, q_pred_inv)
 
     return q_diff
 
@@ -85,18 +100,46 @@ def quaternion_log(q):
         
         # Compute the norm of the quaternion
         
-        norm_q = torch.norm(q, dim=1, keepdim=True) 
+        # norm_q = torch.norm(q, dim=1, keepdim=True) 
         
         # Get vector part of the quaternion
         q_v = q[:, 1:]
+        q_v_norm = torch.norm(q_v, dim=1, keepdim=True)
         
         # Compute the angle of rotation
-        theta = 2 * torch.atan2(norm_q, q[:, 0:1])
+        theta = 2 * torch.atan2(q_v_norm, q[:, 0:1])
         
-        # COmpute the log of the quaternion
-        q_log = theta * q_v / norm_q
+        # Compute the log of the quaternion
+        q_log = theta * q_v / q_v_norm
         
         return q_log
+
+def quaternion_error(q_pred, q_gt):
+
+    # Compute dot product between two quaternions
+    # Input: q_pred = [q_w, q_x, q_y, q_z]
+    #        q_gt   = [q_w, q_x, q_y, q_z]
+
+    # Compute the norm of the quaternion
+    norm_q_pred = torch.norm(q_pred, dim=1, keepdim=True)
+    norm_q_gt = torch.norm(q_gt, dim=1, keepdim=True)
+
+    # Normalize the quaternion
+    q_pred = q_pred / norm_q_pred
+    q_gt = q_gt / norm_q_gt
+
+    # Compute the dot product between the two quaternions 
+    q_dot = torch.sum(q_pred * q_gt, dim=1, keepdim=True)
+
+    # Compute the angle between the two quaternions
+    theta = torch.acos(torch.abs(q_dot))
+
+    # min_theta = torch.min(theta, np.pi - theta)
+
+    # COnvert to degrees
+    # theta = theta * 180 / np.pi
+
+    return theta
 
 if __name__ == "__main__":
 
@@ -124,7 +167,7 @@ if __name__ == "__main__":
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + vehicle_type + "/"
-    experiment_path = experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
+    experiment_path = "/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20240110-021809_1/" #max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
@@ -200,13 +243,13 @@ if __name__ == "__main__":
                 
                 y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
                 attitude_gt = y[j, 3:7]
-            
-
+                
                 q_error = quaternion_difference(y_hat, attitude_gt.unsqueeze(0))
                 q_error_log = quaternion_log(q_error)
 
-
-                abs_error.append(torch.norm(q_error_log, dim=1, keepdim=True))
+                # q_error = quaternion_error(y_hat, attitude_gt.unsqueeze(0))
+                # abs_error.append(torch.norm(q_error_log, dim=1, keepdim=True))
+                abs_error.append(torch.abs(q_error_log))
                 
                 loss = torch.norm(q_error_log, dim=1, keepdim=False)[0] #mse_loss(q_error_log)
                 batch_loss += loss / args.unroll_length
@@ -247,7 +290,7 @@ if __name__ == "__main__":
                     label='Variance Copounding Error')
 
     ax.set_xlabel("No. of Recursive Predictions")
-    ax.set_ylabel("MSE")
+    ax.set_ylabel("Quaternion Error")
     ax.set_title("MSE Analysis over Recursive Predictions")
     ax.legend()
 
@@ -267,9 +310,9 @@ if __name__ == "__main__":
     ax.bar(np.arange(len(sample_loss)), sample_loss, color='skyblue', alpha=0.7, edgecolor='black')
 
     ax.set_xlabel("Sample")
-    ax.set_ylabel("MSE")
+    ax.set_ylabel("Quaternion Error")
     # Set title with the unroll length
-    ax.set_title(f"MSE over {args.unroll_length} Recursive Predictions")
+    # ax.set_title(f"Mean Quaternion Error (rad) over {args.unroll_length} Recursive Predictions")
 
     # Adding gridlines
     ax.grid(axis='y', linestyle='--', alpha=0.7)

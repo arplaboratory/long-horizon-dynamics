@@ -19,12 +19,13 @@ def quaternion_log(q):
     
         # Get vector part of the quaternion
         q_v = q[:, 1:]
-    
+        q_v_norm = np.linalg.norm(q_v, axis=1, keepdims=True)
+
         # Compute the angle of rotation
-        theta = 2 * np.arctan2(norm_q, q[:, 0:1])
-    
-        # COmpute the log of the quaternion
-        q_log = theta * q_v / norm_q
+        theta = 2 * np.arctan2(q_v_norm, q[:, 0:1])
+
+        # Ompute the log of the quaternion
+        q_log = theta * q_v / q_v_norm
     
         return q_log
 
@@ -46,11 +47,32 @@ def quaternion_difference(q_t1, q_t0):
     q_t0_inv = np.concatenate((q_t0[:, 0:1], -q_t0[:, 1:]), axis=1)
 
     # Compute the difference between the two quaternions
-    q_diff = q_t1 * q_t0_inv
+    q_diff = quaternion_product(q_t1, q_t0_inv)
 
     return q_diff
 
+def quaternion_product(q_t1, q_t0):
     
+        # Compute the rotation q that takes q_t0 to q_t1
+        # Input: q_t1 = [q_w, q_x, q_y, q_z]
+        #        q_t0 = [q_w, q_x, q_y, q_z]
+    
+        # Compute the norm of the quaternion
+        norm_q_t1 = np.linalg.norm(q_t1, axis=1, keepdims=True)
+        norm_q_t0 = np.linalg.norm(q_t0, axis=1, keepdims=True)
+    
+        # Normalize the quaternion
+        q_t1 = q_t1 / norm_q_t1
+        q_t0 = q_t0 / norm_q_t0
+    
+        # Compute the quaternion product
+        q_hat = np.concatenate((q_t1[:, 0:1] * q_t0[:, 0:1] - q_t1[:, 1:2] * q_t0[:, 1:2] - q_t1[:, 2:3] * q_t0[:, 2:3] - q_t1[:, 3:4] * q_t0[:, 3:4],
+                                q_t1[:, 0:1] * q_t0[:, 1:2] + q_t1[:, 1:2] * q_t0[:, 0:1] + q_t1[:, 2:3] * q_t0[:, 3:4] - q_t1[:, 3:4] * q_t0[:, 2:3],
+                                q_t1[:, 0:1] * q_t0[:, 2:3] - q_t1[:, 1:2] * q_t0[:, 3:4] + q_t1[:, 2:3] * q_t0[:, 0:1] + q_t1[:, 3:4] * q_t0[:, 1:2],
+                                q_t1[:, 0:1] * q_t0[:, 3:4] + q_t1[:, 1:2] * q_t0[:, 2:3] - q_t1[:, 2:3] * q_t0[:, 1:2] + q_t1[:, 3:4] * q_t0[:, 0:1]), axis=1)
+    
+        return q_hat
+
 
 def csv_to_hdf5(args, data_path):
 
@@ -182,11 +204,21 @@ if __name__ == "__main__":
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + "quadrotor/"
     
-    csv_to_hdf5(args, data_path)
+    # csv_to_hdf5(args, data_path)
 
 
     X, Y = load_hdf5(data_path + 'train/', 'train.h5')
     
+    # q_0 = np.array([[0.9848077, -0.1736483, 0, 0]])
+    # q_1 = np.array([[1, 0, 0, 0]])
+
+    # print(q_0.shape, q_1.shape)
+
+    # q_diff = quaternion_difference(q_1, q_0)
+    # q_diff_log = quaternion_log(q_diff)
+
+    # print(q_diff_log)
+
 
 
     ############## Data Analysis ##############
@@ -202,20 +234,25 @@ if __name__ == "__main__":
     # Get quaternion between the last state of the input and the output
     # print("Quaternion between the last state of the input and the output")
 
-    abs_diff = []
+    quat_diff = []
     for i in range(X.shape[0]):
         q_t0 = X[i, -1, 3:7]
         q_t1 = Y[i, 0, 3:7]
+
+        # Expanding the dimensions
+        q_t0 = np.expand_dims(q_t0, axis=0)
+        q_t1 = np.expand_dims(q_t1, axis=0)
         
-        q_diff = quaternion_difference(np.expand_dims(q_t1, axis=0), np.expand_dims(q_t0, axis=0))
+        quat_error = quaternion_difference(q_t1, q_t0)
+        quat_error_log = quaternion_log(quat_error)
 
-        q_diff_log = quaternion_log(q_diff)
-
-        abs_diff.append(np.linalg.norm(q_diff_log, axis=1))
+        quat_diff.append(quat_error_log)
     
-    abs_diff = np.array(abs_diff)
+    abs_diff = np.array(quat_diff)
     print(np.mean(abs_diff, axis=0))
     print(np.var(abs_diff, axis=0))
+
+
 
     # print("Min and Max values for each of the output features")
     # print("Minimum")
