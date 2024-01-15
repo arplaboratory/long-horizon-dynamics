@@ -27,12 +27,12 @@ def parse_args():
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
     parser.add_argument('--warmup_lr',             type=float,    default=5e-3)
     parser.add_argument('--cosine_lr',             type=float,    default=1e-4)
-    parser.add_argument('--warmup_steps',          type=int,      default=25000)
-    parser.add_argument('--cosine_steps',          type=int,      default=100000)
-    parser.add_argument('--gradient_clip_val',     type=float,    default=1.0)
+    parser.add_argument('--warmup_steps',          type=int,      default=2000)
+    parser.add_argument('--cosine_steps',          type=int,      default=8000)
+    parser.add_argument('--gradient_clip_val',     type=float,    default=0.5)
     parser.add_argument('--weight_decay',          type=float,    default=1e-2)
     parser.add_argument('--adam_beta1',            type=float,    default=0.9)
-    parser.add_argument('--adam_beta2',            type=float,    default=0.95)
+    parser.add_argument('--adam_beta2',            type=float,    default=0.799)
     parser.add_argument('--adam_eps',              type=float,    default=1e-08)
 
     # Physics-inspired loss 
