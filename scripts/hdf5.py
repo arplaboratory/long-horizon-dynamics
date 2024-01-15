@@ -204,7 +204,7 @@ if __name__ == "__main__":
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + "quadrotor/"
     
-    # csv_to_hdf5(args, data_path)
+    csv_to_hdf5(args, data_path)
 
 
     X, Y = load_hdf5(data_path + 'train/', 'train.h5')
