@@ -7,6 +7,9 @@ from tqdm import tqdm
 from dynamics_learning.utils import Euler2Quaternion, deltaQuaternion
 from config import parse_args
 
+
+SAMPLING_FREQUENCY = {'fixed_wing': 100, 'quadrotor': 100, 'neurobem': 400}
+
 def extract_data(data, dataset_name):
     try:
         if dataset_name == "fixed_wing":
@@ -41,12 +44,12 @@ def extract_data(data, dataset_name):
 
 def csv_to_hdf5(args, data_path):
 
-    hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length)
-    hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length)
-    hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length)
+    hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
     hdf5_recursive(data_path, 'test/',  'test_eval.h5', args.vehicle_type)
 
-def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, unroll_length):
+def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, unroll_length, sampling_frequency):
 
     all_X = []
     all_Y = []
@@ -60,6 +63,9 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, u
             velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
 
             data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
+
+            # Sampling frequency
+            data_np = data_np[::int(SAMPLING_FREQUENCY[dataset]/sampling_frequency), :]
 
             num_samples = data_np.shape[0] - history_length - unroll_length
 

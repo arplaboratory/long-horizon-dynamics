@@ -47,13 +47,14 @@ def parse_args():
     
     # Data
     parser.add_argument('--normalize',             type=bool,     default=False)
+    parser.add_argument('--sampling_frequency',    type=int,      default=100)
     parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--std_percentage',        type=float,    default=0.1)
-    parser.add_argument('--unroll_length',         type=int,      default=40)
+    parser.add_argument('--unroll_length',         type=int,      default=20)
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--attitude',              type=str,      default='quaternion')
     parser.add_argument('--delta',                 type=bool,     default=False)
-    parser.add_argument('--vehicle_type',          type=str,      default='quadrotor')
+    parser.add_argument('--vehicle_type',          type=str,      default='neurobem')
     
 
   
