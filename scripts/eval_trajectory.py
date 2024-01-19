@@ -149,6 +149,7 @@ if __name__ == "__main__":
     sample_loss = []
 
     copounding_error_per_sample = []
+    mean_abs_error_per_sample = []   
 
     model.eval()
     with torch.no_grad():
@@ -162,7 +163,7 @@ if __name__ == "__main__":
             x_curr = x 
             batch_loss = 0.0
 
-            mean_abs_error_per_sample = []              
+                       
             abs_error = []
 
             compounding_error = []
