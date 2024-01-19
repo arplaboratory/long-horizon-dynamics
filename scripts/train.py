@@ -105,7 +105,7 @@ if __name__ == "__main__":
     pytorch_lightning.seed_everything(args.seed)
 
     # Assert vehicle type
-    assert args.vehicle_type in ["fixed_wing", "quadrotor", "neurobem"], "Vehicle type must be one of [fixed_wing, quadrotor]"
+    assert args.vehicle_type in ["fixed_wing", "quadrotor", "neurobem"], "Vehicle type must be one of [fixed_wing, quadrotor, neurobem]"
 
     if args.vehicle_type == "fixed_wing":
         vehicle_type = "fixed_wing"

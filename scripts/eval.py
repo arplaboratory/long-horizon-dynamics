@@ -36,7 +36,8 @@ def main(args):
     )
 
     input_size = test_dataset.X_shape[2]
-    output_size = test_dataset.Y_shape[1]
+    output_size = 6 #test_dataset.Y_shape[]
+
 
     test_gt = test_dataset.Y
     
@@ -69,6 +70,7 @@ def main(args):
     trainer.validate(model, test_loader, ckpt_path=model_path)
 
 if __name__ == "__main__":
+    
     # parse arguments
     args = parse_args()
 
@@ -82,12 +84,14 @@ if __name__ == "__main__":
     pytorch_lightning.seed_everything(args.seed)
 
     # Assert vehicle type
-    assert args.vehicle_type in ["fixed_wing", "quadrotor"], "Vehicle type must be one of [fixed_wing, quadrotor]"
+    assert args.vehicle_type in ["fixed_wing", "quadrotor", "neurobem"], "Vehicle type must be one of [fixed_wing, quadrotor, neurobem]"
 
     if args.vehicle_type == "fixed_wing":
         vehicle_type = "fixed_wing"
-    else:
+    elif args.vehicle_type == "quadrotor":
         vehicle_type = "quadrotor"
+    elif args.vehicle_type == "neurobem":
+        vehicle_type = "neurobem"
 
     # Set global paths
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
