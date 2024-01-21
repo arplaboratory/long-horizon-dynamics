@@ -48,11 +48,11 @@ import h5py
 
 
 OUTPUT_FEATURES = {
-    "euler": ["u", "v", "w", "phi", "theta", "psi", "p", "q", "r"],
-    "quaternion": ["u", "v", "w", "q0", "q1", "q2", "q3", "p", "q", "r"],
+    "euler": ["phi (rad)", "theta (rad)", "psi (rad)"],
+    "quaternion": ["q0", "q1", "q2", "q3"],
     "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"],
     "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"], 
-    "save": ["v_x", "v_y", "v_z", "w_x", "w_y", "w_z"],
+    "save": ["vx", "vy", "vz", "wx", "wy", "wz"],
     "title": ["Ground velocity u", "Ground velocity v", "Ground velocity w", "Ground angular velocity p", "Ground angular velocity q", "Ground angular velocity r"], 
     # "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "qx", "qy", "qz", "qw",  "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
 }
@@ -62,7 +62,6 @@ def load_data(hdf5_path, hdf5_file):
         X = hf['inputs'][:]
         Y = hf['outputs'][:]
     return X, Y
-
 
 if __name__ == "__main__":
 
@@ -135,123 +134,102 @@ if __name__ == "__main__":
 
     model = model.to(args.device)
 
-    # # load mean and std
-    # # mean = torch.from_numpy(np.load(data_path  + 'train/' + 'mean_train.npy')).float().to(args.device)
-    # # std =  torch.from_numpy(np.load(data_path  + 'train/' + 'std_train.npy')).float().to(args.device)
-
     input_shape = (1, args.history_length, X.shape[-1])
     output_shape = (1, 6)
 
-    # Y_plot = np.zeros((X.shape[0] - args.history_length,     6))
-    # Y_hat_plot = np.zeros((X.shape[0] - args.history_length, 6))
-
-    mse_loss = MSE()
-    sample_loss = []
-
-    copounding_error_per_sample = []
-    mean_abs_error_per_sample = []   
+    Y_plot = np.zeros((args.unroll_length,     6))
+    Y_hat_plot = np.zeros((args.unroll_length, 6))
 
     model.eval()
     with torch.no_grad():
+
+        x = X[100, :, :]
+        y = Y[100, :, :]
+
+        x = x.unsqueeze(0)
+        x_curr = x 
+
+        for j in range(args.unroll_length):
+            
+            y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
+            
+            linear_velocity_gt =  y[j, :3]
+            angular_velocity_gt = y[j, 7:10]
+
+            velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=0)
+
         
-        for i in tqdm(range(0, X.shape[0])):
-
-            x = X[i, :, :]
-            y = Y[i, :, :]
-
-            x = x.unsqueeze(0)
-            x_curr = x 
-            batch_loss = 0.0
-
-                       
-            abs_error = []
-
-            compounding_error = []
-
-            for j in range(args.unroll_length):
+            Y_plot[j, :] = velocity_gt.detach().cpu().numpy()
+            Y_hat_plot[j, :] = y_hat.detach().cpu().numpy()
+            
+            
+            if j < args.unroll_length - 1:
                 
-                y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
-                # y_gt = y[:, i, :self.output_size]
+                linear_velocity_pred = y_hat[:, :3]
+                angular_velocity_pred = y_hat[:, 3:]
 
-                linear_velocity_gt =  y[j, :3]
-                angular_velocity_gt = y[j, 7:10]
+                u_gt = y[j, -4:].unsqueeze(0)
+                attitude_gt = y[j, 3:7].unsqueeze(0)
 
-                velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=0)
+                # Update x_curr
+                x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
+            
+                x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
 
-                abs_error.append(torch.abs(y_hat - velocity_gt))
 
-                loss = mse_loss(y_hat, velocity_gt)
-                batch_loss += loss / args.unroll_length
-
-                compounding_error.append(loss.item())
-
-                if j < args.unroll_length - 1:
-                    
-                    linear_velocity_pred = y_hat[:, :3]
-                    angular_velocity_pred = y_hat[:, 3:]
-
-                    u_gt = y[j, -4:].unsqueeze(0)
-                    attitude_gt = y[j, 3:7].unsqueeze(0)
-
-                    # Update x_curr
-                    x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
+    #################################################################################################################################################
                 
-                    x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
+    # Plot the predicted and ground truth Quaternion
+    pp = PdfPages(experiment_path + "plots/trajectory/trajectory.pdf")
 
-            mean_abs_error_per_sample.append(torch.mean(torch.cat(abs_error, dim=0), dim=0).cpu().numpy())
-            sample_loss.append(batch_loss.item())
-            copounding_error_per_sample.append(compounding_error)
-
-    #################################################################################################################################################
-    copounding_error_per_sample = np.array(copounding_error_per_sample)
-    print("Mean Copounding Error per sample: ", np.mean(copounding_error_per_sample, axis=0))
-    # Print varience of copounding error per sample
-    print("Variance Copounding Error per sample: ", np.var(copounding_error_per_sample, axis=0))
-    # Mean and overlay variance of copounding error per sample over number of recursions
-    mean_copounding_error_per_sample = np.mean(copounding_error_per_sample, axis=0)
-    var_copounding_error_per_sample = np.var(copounding_error_per_sample, axis=0)
-
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
-    ax.plot(mean_copounding_error_per_sample, color='skyblue', linewidth=2.5, label='Mean Copounding Error')
-    ax.fill_between(np.arange(len(mean_copounding_error_per_sample)), mean_copounding_error_per_sample - var_copounding_error_per_sample, 
-                    mean_copounding_error_per_sample + var_copounding_error_per_sample, alpha=0.5, color='skyblue', 
-                    label='Variance Copounding Error')
-
-    ax.set_xlabel("No. of Recursive Predictions")
-    ax.set_ylabel("MSE")
-    ax.set_title("MSE Analysis over Recursive Predictions")
-    ax.legend()
-
-    # Save the plot
-    plt.tight_layout(pad=1.5)
-    plt.savefig(experiment_path + "plots/trajectory/eval_mse_loss.png")
-    plt.close()
-
-    #################################################################################################################################################
-
-    # Print the mean_abs_error_per_sample over the entire test set
-    mean_abs_error_per_sample = np.array(mean_abs_error_per_sample)
-    print("Mean Absolute Error per sample: ", np.mean(mean_abs_error_per_sample, axis=0))
+    # Plot linear velocity
+    fig, ax = plt.subplots(nrows=3, ncols=1)
+    fig.suptitle("Linear Velocity", x=0.5, y=0.95)
     
-    # Plot sample loss as bar plot over every sample 
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
-    ax.bar(np.arange(len(sample_loss)), sample_loss, color='skyblue', alpha=0.7, edgecolor='black')
-
-    ax.set_xlabel("Sample")
-    ax.set_ylabel("MSE")
-    # Set title with the unroll length
-    ax.set_title(f"MSE over {args.unroll_length} Recursive Predictions")
-
-    # Adding gridlines
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    # zoom out the plot
+    ax[0].set_ylim([-2.0, 2.0])
+    ax[1].set_ylim([-2.0, 2.0])
+    ax[2].set_ylim([-2.0, 2.0])
     
-    # Customize ticks and labels
-    ax.tick_params(axis='both', which='major', labelsize=10)
-    ax.tick_params(axis='x', rotation=45)
 
-    # Save the plot
-    plt.tight_layout(pad=1.5)
-    plt.savefig(experiment_path + "plots/trajectory/eval_mse_sample_loss.png")
-    plt.close()
+    ax[0].plot(Y_plot[:, 0], label="Ground Truth", color=colors[1], linewidth=4.5)
+    ax[0].plot(Y_hat_plot[:, 0], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
+    ax[1].plot(Y_plot[:, 1], label="Ground Truth", color=colors[1], linewidth=4.5)
+    ax[1].plot(Y_hat_plot[:, 1], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
+    ax[2].plot(Y_plot[:, 2], label="Ground Truth", color=colors[1], linewidth=4.5)
+    ax[2].plot(Y_hat_plot[:, 2], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
+    ax[0].set_ylabel(r'$v_x$ $[m/s]$')
+    ax[1].set_ylabel(r'$v_y$ $[m/s]$')
+    ax[2].set_ylabel(r'$v_z$ $[m/s]$')
+    ax[2].set_xlabel("No. of recursive predictions")
+    ax[0].grid(); ax[1].grid(); ax[2].grid()
+    fig.align_ylabels(ax)
+    pp.savefig(fig)
 
+    # Plot angular velocity
+    fig, ax = plt.subplots(nrows=3, ncols=1)
+    fig.suptitle("Angular Velocity", x=0.5, y=0.95)
+    # zoom out the plot
+    ax[0].set_ylim([-2.0, 2.0])
+    ax[1].set_ylim([-2.0, 2.0])
+    ax[2].set_ylim([-2.0, 2.0])
+    
+    ax[0].plot(Y_plot[:, 3], label="Ground Truth", color=colors[1], linewidth=4.5)
+    ax[0].plot(Y_hat_plot[:, 3], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
+    ax[1].plot(Y_plot[:, 4], label="Ground Truth", color=colors[1], linewidth=4.5)
+    ax[1].plot(Y_hat_plot[:, 4], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
+    ax[2].plot(Y_plot[:, 5], label="Ground Truth", color=colors[1], linewidth=4.5)
+    ax[2].plot(Y_hat_plot[:, 5], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
+    ax[0].set_ylabel(r'$\omega_x$')
+    ax[1].set_ylabel(r'$\omega_y$')
+    ax[2].set_ylabel(r'$\omega_z$')
+    ax[2].set_xlabel("No. of recursive predictions")
+    ax[0].grid(); ax[1].grid(); ax[2].grid()
+    fig.align_ylabels(ax)
+    pp.savefig(fig)
+
+    pp.close()
+    plt.close("all")
+                
     #################################################################################################################################################
+

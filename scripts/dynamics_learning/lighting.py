@@ -77,8 +77,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         y_hat = self.model(x, init_memory) 
 
         # Add predicted delta linear velocity and angular velocity
-        y_hat[:, :3] = y_hat[:, :3] + x[:, -1, :3]
-        y_hat[:, 3:] = y_hat[:, 3:] + x[:, -1, 7:10]
+
+        if self.args.delta == True:
+            y_hat[:, :3] = y_hat[:, :3] + x[:, -1, :3]
+            y_hat[:, 3:] = y_hat[:, 3:] + x[:, -1, 7:10]
         
         return y_hat
     
