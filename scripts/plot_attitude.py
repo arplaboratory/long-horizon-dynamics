@@ -47,11 +47,38 @@ from tqdm import tqdm
 import h5py
 
 
+OUTPUT_FEATURES = {
+    "euler": ["phi (rad)", "theta (rad)", "psi (rad)"],
+    "quaternion": ["q0", "q1", "q2", "q3"],
+    "rotation": ["u", "v", "w", "r11", "r12", "r13", "r21", "r22", "r23", "r31", "r32", "r33", "p", "q", "r"],
+    "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"], 
+    "save": ["phi", "theta", "psi"],
+    "title": ["Ground velocity u", "Ground velocity v", "Ground velocity w", "Ground angular velocity p", "Ground angular velocity q", "Ground angular velocity r"], 
+    # "test": ["v_x (m/s)", "v_y (m/s)", "v_z (m/s)", "qx", "qy", "qz", "qw",  "w_x (rad/s)", "w_y (rad/s)", "w_z (rad/s)"],
+}
+
 def load_data(hdf5_path, hdf5_file):
     with h5py.File(hdf5_path + hdf5_file, 'r') as hf: 
         X = hf['inputs'][:]
         Y = hf['outputs'][:]
     return X, Y
+
+
+def Quaternion2Euler(quaternion):
+    """
+    converts a quaternion attitude to an euler angle attitude
+    :param quaternion: the quaternion to be converted to euler angles in a np.matrix
+    :return: the euler angle equivalent (phi, theta, psi) in a np.array
+    """
+    e0 = quaternion[0, 0]
+    e1 = quaternion[0, 1]
+    e2 = quaternion[0, 2]
+    e3 = quaternion[0, 3]
+    phi = np.arctan2(2.0 * (e0 * e1 + e2 * e3), e0**2.0 + e3**2.0 - e1**2.0 - e2**2.0)
+    theta = np.arcsin(2.0 * (e0 * e2 - e1 * e3))
+    psi = np.arctan2(2.0 * (e0 * e3 + e1 * e2), e0**2.0 + e1**2.0 - e2**2.0 - e3**2.0)
+
+    return phi, theta, psi
 
 if __name__ == "__main__":
 
@@ -127,71 +154,72 @@ if __name__ == "__main__":
     input_shape = (1, args.history_length, X.shape[-1])
     output_shape = (1, 4)
 
-    Y_plot = np.zeros((X.shape[0],     4))
-    Y_hat_plot = np.zeros((X.shape[0], 4))
+    Y_plot = np.zeros((args.unroll_length,     3))
+    Y_hat_plot = np.zeros((args.unroll_length, 3))
 
     model.eval()
     with torch.no_grad():
 
-        for i in tqdm(range(0, X.shape[0])):
+        x = X[200, :, :]
+        y = Y[200, :, :]
 
-            x = X[i, :, :]
-            y = Y[i, 0, :]
+        x = x.unsqueeze(0)
+        x_curr = x 
 
-            x = x.unsqueeze(0)
+        for j in range(args.unroll_length):
+            
+            y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
+            attitude_gt = y[j, 3:7]
 
-            # Single step prediction
-            y_hat = model.forward(x, init_memory=True if i == 0 else False)
+            # y_hat = attitude_gt + torch.randn(4).to(args.device) * 0.01
+            # y_hat = y_hat.unsqueeze(0)
 
-            # Normalize the predicted Quaternion
-            y_hat = y_hat / torch.norm(y_hat)
+            # Normalize the quaternion
+            y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
 
+ 
+            # Save predictions and ground truth attitude for plotting
+            # Convert quaternion to euler angles
+            euler_pred = Quaternion2Euler(y_hat.detach().cpu().numpy())
+            
+            euler_gt = Quaternion2Euler(attitude_gt.unsqueeze(0).detach().cpu().numpy())
 
-            attitude_gt = y[3:7]
+            Y_plot[j, :] = euler_gt
+            Y_hat_plot[j, :] = euler_pred
+            
+            
+            if j < args.unroll_length - 1:
+                
+                linear_velocity_gt = y[j, :3].view(1, 3)
+                angular_velocity_gt = y[j, 7:10].view(1, 3)
 
-            Y_plot[i, :] = attitude_gt.detach().cpu().numpy()
-            Y_hat_plot[i, :] = y_hat.detach().cpu().numpy()
+                u_gt = y[j, -4:].unsqueeze(0)
+                # Update x_curr
+                x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
+            
+                x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
+
 
     #################################################################################################################################################
                 
     # Plot the predicted and ground truth Quaternion
-    pp = PdfPages(experiment_path + "plots/trajectory/one_step.pdf")
+    for i in range(3):
+        fig = plt.figure(figsize=(8, 6), dpi=400)
 
-    # Plot the predicted and ground truth Quaternion
-    fig, ax = plt.subplots(nrows=4, ncols=1)
-    fig.suptitle("One step prediction", fontsize=32)
-   
+        plt.ylim(-1, 1)
 
-    # Plot the ground truth
-    ax[0].plot(Y_plot[:, 0], color=colors[1], label="Ground truth", linewidth=3)
-    ax[1].plot(Y_plot[:, 1], color=colors[1], label="Ground truth", linewidth=3)
-    ax[2].plot(Y_plot[:, 2], color=colors[1], label="Ground truth", linewidth=3)
-    ax[3].plot(Y_plot[:, 3], color=colors[1], label="Ground truth", linewidth=3)
 
-    # Plot the predicted
-    ax[0].plot(Y_hat_plot[:, 0], color=colors[2], label="Predicted", linewidth=3)
-    ax[1].plot(Y_hat_plot[:, 1], color=colors[2], label="Predicted", linewidth=3)
-    ax[2].plot(Y_hat_plot[:, 2], color=colors[2], label="Predicted", linewidth=3)
-    ax[3].plot(Y_hat_plot[:, 3], color=colors[2], label="Predicted", linewidth=3)
-
-    # Set the labels
-    ax[0].set_ylabel(r"$q_w$", fontsize=32)
-    ax[1].set_ylabel(r"$q_x$", fontsize=32)
-    ax[2].set_ylabel(r"$q_y$", fontsize=32)
-    ax[3].set_ylabel(r"$q_z$", fontsize=32)
-
-    ax[3].set_xlabel("Time $[s]$", fontsize=32)
-
-    # Set the legend
-    ax[0].legend(loc="upper right", fontsize=32)
-    ax[1].legend(loc="upper right", fontsize=32)
-    ax[2].legend(loc="upper right", fontsize=32)
-    ax[3].legend(loc="upper right", fontsize=32)
-
-    pp.savefig(fig)
-
-    
-    pp.close()
-    plt.close("all")
+        plt.plot(Y_plot[:, i], label="Ground Truth", color=colors[1], linewidth=4.5)
+        plt.plot(Y_hat_plot[:, i], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
+        plt.grid(True)  # Add gridlines
+        plt.tight_layout(pad=1.5)
+        plt.legend()
+        plt.xlabel("No. of recursive predictions")
+        plt.ylabel(OUTPUT_FEATURES["euler"][i])
+        # plt.title(OUTPUT_FEATURES["title"][i])
+        
+        plt.savefig(experiment_path + "plots/trajectory/trajectory_" + OUTPUT_FEATURES["save"][i] + ".png")
+        plt.close()    
                 
     #################################################################################################################################################
+

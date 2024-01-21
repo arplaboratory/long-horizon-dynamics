@@ -156,18 +156,19 @@ if __name__ == "__main__":
     pytorch_lightning.seed_everything(args.seed)
 
     # Assert vehicle type
-    assert args.vehicle_type in ["fixed_wing", "quadrotor"], "Vehicle type must be one of [fixed_wing, quadrotor]"
-
+    assert args.vehicle_type in ["fixed_wing", "quadrotor", "neurobem"], "Vehicle type must be one of [fixed_wing, quadrotor, neurobem]"
     if args.vehicle_type == "fixed_wing":
         vehicle_type = "fixed_wing"
-    else:
+    elif args.vehicle_type == "quadrotor":
         vehicle_type = "quadrotor"
+    elif args.vehicle_type == "neurobem":
+        vehicle_type = "neurobem"
 
     # Set global paths
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + vehicle_type + "/"
-    experiment_path = "/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20240110-021809_1/" #max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
+    experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
@@ -219,13 +220,13 @@ if __name__ == "__main__":
     mse_loss = MSE()
     sample_loss = []
 
-    copounding_error_per_sample = []
+    compounding_error_per_sample = []
     mean_abs_error_per_sample = []  
 
     model.eval()
     with torch.no_grad():
         
-        for i in tqdm(range(args.history_length, X.shape[0])):
+        for i in tqdm(range(0, X.shape[0])):
 
             x = X[i, :, :]
             y = Y[i, :, :]
@@ -272,21 +273,21 @@ if __name__ == "__main__":
 
             mean_abs_error_per_sample.append(torch.mean(torch.cat(abs_error, dim=0), dim=0).cpu().numpy())
             sample_loss.append(batch_loss.item())
-            copounding_error_per_sample.append(compounding_error)
+            compounding_error_per_sample.append(compounding_error)
 
     #################################################################################################################################################
-    copounding_error_per_sample = np.array(copounding_error_per_sample)
-    print("Mean Copounding Error per sample: ", np.mean(copounding_error_per_sample, axis=0))
+    compounding_error_per_sample = np.array(compounding_error_per_sample)
+    print("Mean Copounding Error per sample: ", np.mean(compounding_error_per_sample, axis=0))
     # Print varience of copounding error per sample
-    print("Variance Copounding Error per sample: ", np.var(copounding_error_per_sample, axis=0))
+    print("Variance Copounding Error per sample: ", np.var(compounding_error_per_sample, axis=0))
     # Mean and overlay variance of copounding error per sample over number of recursions
-    mean_copounding_error_per_sample = np.mean(copounding_error_per_sample, axis=0)
-    var_copounding_error_per_sample = np.var(copounding_error_per_sample, axis=0)
+    mean_compounding_error_per_sample = np.mean(compounding_error_per_sample, axis=0)
+    var_compounding_error_per_sample = np.var(compounding_error_per_sample, axis=0)
 
     fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
-    ax.plot(mean_copounding_error_per_sample, color='skyblue', linewidth=2.5, label='Mean Copounding Error')
-    ax.fill_between(np.arange(len(mean_copounding_error_per_sample)), mean_copounding_error_per_sample - var_copounding_error_per_sample, 
-                    mean_copounding_error_per_sample + var_copounding_error_per_sample, alpha=0.5, color='skyblue', 
+    ax.plot(mean_compounding_error_per_sample, color='skyblue', linewidth=2.5, label='Mean Copounding Error')
+    ax.fill_between(np.arange(len(mean_compounding_error_per_sample)), mean_compounding_error_per_sample - var_compounding_error_per_sample, 
+                    mean_compounding_error_per_sample + var_compounding_error_per_sample, alpha=0.5, color='skyblue', 
                     label='Variance Copounding Error')
 
     ax.set_xlabel("No. of Recursive Predictions")
