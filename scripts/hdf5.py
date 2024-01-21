@@ -74,7 +74,7 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, u
 
             for i in range(num_samples):
                 X[i, :, :] =   data_np[i:i+history_length, :]
-                Y[i,:,:]   =   data_np[i+history_length: i+history_length+unroll_length,:data_np.shape[1]]
+                Y[i,:,:]   =   data_np[i+history_length:i+history_length+unroll_length,:data_np.shape[1]]
 
             all_X.append(X)
             all_Y.append(Y)
@@ -167,12 +167,12 @@ if __name__ == "__main__":
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + args.vehicle_type + "/" 
     
-    csv_to_hdf5(args, data_path)
+    #csv_to_hdf5(args, data_path)
 
 
     X, Y = load_hdf5(data_path + 'train/', 'train.h5')
     
-    print("Shape of the input data: ", X.shape)
+    print("Shape of the input data: ",  X.shape)
     print("Shape of the output data: ", Y.shape)
 
 
@@ -185,15 +185,12 @@ if __name__ == "__main__":
     # Varience 
     print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
 
-    
+    print("Min and Max values for each of the output features")
+    print("Minimum")
+    print(np.min(Y, axis=0))
 
-
-    # print("Min and Max values for each of the output features")
-    # print("Minimum")
-    # print(np.min(Y, axis=0))
-
-    # print("Maximum")
-    # print(np.max(Y, axis=0))
+    print("Maximum")
+    print(np.max(Y, axis=0))
 
 
     # # Print the MSE between the last state of the input and the output
@@ -208,13 +205,6 @@ if __name__ == "__main__":
 
     # X, Y = load_hdf5(data_path + 'test/', 'test_trajectory.h5')
     # print(X.shape, Y.shape)
-
-
-
-
-
-   
-
 
     # X, Y = load_hdf5(data_path + 'test/', 'test_eval.h5')
     # print(X.shape, Y.shape)
