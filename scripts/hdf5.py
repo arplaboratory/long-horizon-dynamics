@@ -4,7 +4,7 @@ import numpy as np
 import h5py
 import sys
 from tqdm import tqdm
-from dynamics_learning.utils import Quaternion2Euler, Quaternion2Rotation, deltaQuaternion
+from dynamics_learning.utils import Euler2Quaternion
 from config import parse_args
 
 
@@ -74,14 +74,48 @@ def quaternion_product(q_t1, q_t0):
         return q_hat
 
 
+SAMPLING_FREQUENCY = {'fixed_wing': 100, 'quadrotor': 100, 'neurobem': 400}
+
+def extract_data(data, dataset_name):
+    try:
+        if dataset_name == "fixed_wing":
+            velocity_data = data[['u', 'v', 'w']].values
+            euler_data = data[['phi', 'theta', 'psi']].values
+            
+            attitude_data = np.zeros((euler_data.shape[0], 4))
+            for i in range(euler_data.shape[0]):
+                attitude_data[i, :] = Euler2Quaternion(euler_data[i,0], euler_data[i,1], euler_data[i,2]).T
+
+            angular_velocity_data = data[['p', 'q', 'r']].values
+            control_data = data[['delta_e', 'delta_a', 'delta_r', 'delta_t']]
+
+        elif dataset_name == "quadrotor":
+            velocity_data = data[['v_x', 'v_y', 'v_z']].values
+            attitude_data = data[['q_w', 'q_x', 'q_y', 'q_z']].values
+            angular_velocity_data = data[['w_x', 'w_y', 'w_z']].values
+            control_data = data[['u_0', 'u_1', 'u_2', 'u_3']].values * 0.001
+
+        elif dataset_name == "neurobem":
+            velocity_data = data[['vel x', 'vel y', 'vel z']].values
+            attitude_data = data[['quat w', 'quat x', 'quat y', 'quat z']].values
+            angular_velocity_data = data[['ang vel x', 'ang vel y', 'ang vel z']].values
+            control_data = data[['mot 1', 'mot 2', 'mot 3', 'mot 4']].values * 0.001
+        else:
+            raise ValueError(f"Invalid dataset name: {dataset_name}")
+    except KeyError as e:
+        raise KeyError(f"Invalid field in dataset '{dataset_name}': {e}")
+
+    return velocity_data, attitude_data, angular_velocity_data, control_data
+
+
 def csv_to_hdf5(args, data_path):
 
-    hdf5(data_path, 'train/', 'train.h5',  args.attitude,  args.history_length, args.unroll_length)
-    hdf5(data_path, 'valid/', 'valid.h5',  args.attitude,  args.history_length, args.unroll_length, train=False)
-    hdf5(data_path, 'test/',  'test.h5',   args.attitude,  args.history_length, args.unroll_length, train=False)
-    # hdf5_recursive(data_path, 'test/',  'test_eval.h5')
+    hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    hdf5_recursive(data_path, 'test/',  'test_eval.h5', args.vehicle_type)
 
-def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_length, train=True):
+def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, unroll_length, sampling_frequency):
 
     all_X = []
     all_Y = []
@@ -92,21 +126,25 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
             csv_file_path = os.path.join(data_path + folder_name, file)
             data = pd.read_csv(csv_file_path)
 
-            velocity_data = data[['v_x', 'v_y', 'v_z']].values
-            attitude_data = data[['q_w', 'q_x', 'q_y', 'q_z']].values
-            angular_velocity_data = data[['w_x', 'w_y', 'w_z']].values
-            control_data = data[['u_0', 'u_1', 'u_2', 'u_3']].values * 0.001 
+            velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
 
             data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
 
+            # Sampling frequency
+            data_np = data_np[::int(SAMPLING_FREQUENCY[dataset]/sampling_frequency), :]
+
             num_samples = data_np.shape[0] - history_length - unroll_length
+
+            # If num_samples is negative, skip the file
+            if num_samples < 0:
+                continue
 
             X = np.zeros((num_samples, history_length, data_np.shape[1]))
             Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
 
             for i in range(num_samples):
                 X[i, :, :] =   data_np[i:i+history_length, :]
-                Y[i,:,:]   =   data_np[i+history_length: i+history_length+unroll_length,:data_np.shape[1]]
+                Y[i,:,:]   =   data_np[i+history_length:i+history_length+unroll_length,:data_np.shape[1]]
 
             all_X.append(X)
             all_Y.append(Y)
@@ -133,7 +171,7 @@ def hdf5(data_path, folder_name, hdf5_file, attitude, history_length, unroll_len
         
     return X, Y
 
-def hdf5_recursive(data_path, folder_name, hdf5_file):
+def hdf5_recursive(data_path, folder_name, hdf5_file, dataset):
 
     all_X = []
     all_Y = []
@@ -144,10 +182,7 @@ def hdf5_recursive(data_path, folder_name, hdf5_file):
             csv_file_path = os.path.join(data_path + folder_name, file)
             data = pd.read_csv(csv_file_path)
 
-            velocity_data = data[['v_x', 'v_y', 'v_z']].values
-            attitude_data = data[['q_w', 'q_x', 'q_y', 'q_z']].values
-            angular_velocity_data = data[['w_x', 'w_y', 'w_z']].values
-            control_data = data[['u_0', 'u_1', 'u_2', 'u_3']].values * 0.001 
+            velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
 
             data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
 
@@ -167,8 +202,6 @@ def hdf5_recursive(data_path, folder_name, hdf5_file):
 
     X = np.concatenate(all_X, axis=0)
     Y = np.concatenate(all_Y, axis=0)
-
-    
         
     # save the data
     # Create the HDF5 file and datasets for inputs and outputs
@@ -200,14 +233,19 @@ if __name__ == "__main__":
     args = parse_args()
 
     # Set global paths 
+    args = parse_args()
+
+    # Set global paths 
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
-    data_path = resources_path + "data/" + "quadrotor/"
+    data_path = resources_path + "data/" + args.vehicle_type + "/" 
     
     csv_to_hdf5(args, data_path)
 
 
     X, Y = load_hdf5(data_path + 'train/', 'train.h5')
+
+    print(X.shape, Y.shape)
     
     # q_0 = np.array([[0.9848077, -0.1736483, 0, 0]])
     # q_1 = np.array([[1, 0, 0, 0]])
@@ -234,23 +272,23 @@ if __name__ == "__main__":
     # Get quaternion between the last state of the input and the output
     # print("Quaternion between the last state of the input and the output")
 
-    quat_diff = []
-    for i in range(X.shape[0]):
-        q_t0 = X[i, -1, 3:7]
-        q_t1 = Y[i, 0, 3:7]
+    # quat_diff = []
+    # for i in range(X.shape[0]):
+    #     q_t0 = X[i, -1, 3:7]
+    #     q_t1 = Y[i, 0, 3:7]
 
-        # Expanding the dimensions
-        q_t0 = np.expand_dims(q_t0, axis=0)
-        q_t1 = np.expand_dims(q_t1, axis=0)
+    #     # Expanding the dimensions
+    #     q_t0 = np.expand_dims(q_t0, axis=0)
+    #     q_t1 = np.expand_dims(q_t1, axis=0)
         
-        quat_error = quaternion_difference(q_t1, q_t0)
-        quat_error_log = quaternion_log(quat_error)
+    #     quat_error = quaternion_difference(q_t1, q_t0)
+    #     quat_error_log = quaternion_log(quat_error)
 
-        quat_diff.append(quat_error_log)
+    #     quat_diff.append(quat_error_log)
     
-    abs_diff = np.array(quat_diff)
-    print(np.mean(abs_diff, axis=0))
-    print(np.var(abs_diff, axis=0))
+    # abs_diff = np.array(quat_diff)
+    # print(np.mean(abs_diff, axis=0))
+    # print(np.var(abs_diff, axis=0))
 
 
 

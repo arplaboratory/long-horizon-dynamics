@@ -12,12 +12,7 @@ import os
 
 warnings.filterwarnings('ignore')
 
-#----------------------------------------------------------------------------
-INPUT_FEATURES = {
-    "euler": 13,
-    "quaternion": 14,
-    "rotation": 19,
-}
+
 #----------------------------------------------------------------------------
 
 def main(args):
@@ -105,12 +100,13 @@ if __name__ == "__main__":
     pytorch_lightning.seed_everything(args.seed)
 
     # Assert vehicle type
-    assert args.vehicle_type in ["fixed_wing", "quadrotor"], "Vehicle type must be one of [fixed_wing, quadrotor]"
-
+    assert args.vehicle_type in ["fixed_wing", "quadrotor", "neurobem"], "Vehicle type must be one of [fixed_wing, quadrotor, neurobem]"
     if args.vehicle_type == "fixed_wing":
         vehicle_type = "fixed_wing"
-    else:
+    elif args.vehicle_type == "quadrotor":
         vehicle_type = "quadrotor"
+    elif args.vehicle_type == "neurobem":
+        vehicle_type = "neurobem"
 
     # Set global paths
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"

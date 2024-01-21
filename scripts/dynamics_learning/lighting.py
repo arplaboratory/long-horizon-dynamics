@@ -118,7 +118,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
             # Normalize the quaternion
             y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
-            
+
             quaternion_gt = y[:, i, 3:7]
 
             loss = self.loss_fn(y_hat, quaternion_gt)
