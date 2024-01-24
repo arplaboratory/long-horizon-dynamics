@@ -7,7 +7,7 @@ def parse_args():
     # architecture
     parser.add_argument('-N', '--model_type',      type=str,       default='gru')
     parser.add_argument('--encoder_sizes',         type=list,      default='512,256,256')
-    parser.add_argument('--decoder_sizes',         type=list,      default='512,256,256')
+    parser.add_argument('--decoder_sizes',         type=list,      default='1024,512,512')
     parser.add_argument('--encoder_output',        type=str,       default='output')
     parser.add_argument('--num_layers',            type=int,       default=4)
     parser.add_argument('--kernel_size',           type=int,       default=2)
@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument('-d', '--gpu_id',          type=int,      default=0)
     parser.add_argument('--num_devices',           type=int,      default=1)
     parser.add_argument('-e', '--epochs',          type=int,      default=50000)
-    parser.add_argument('-b', '--batch_size',      type=int,      default=1024)
+    parser.add_argument('-b', '--batch_size',      type=int,      default=128)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=False)
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('--seed',                  type=int,      default=10)
@@ -27,12 +27,12 @@ def parse_args():
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
     parser.add_argument('--warmup_lr',             type=float,    default=5e-3)
     parser.add_argument('--cosine_lr',             type=float,    default=1e-4)
-    parser.add_argument('--warmup_steps',          type=int,      default=25000)
-    parser.add_argument('--cosine_steps',          type=int,      default=100000)
-    parser.add_argument('--gradient_clip_val',     type=float,    default=1.0)
+    parser.add_argument('--warmup_steps',          type=int,      default=2000)
+    parser.add_argument('--cosine_steps',          type=int,      default=8000)
+    parser.add_argument('--gradient_clip_val',     type=float,    default=0.5)
     parser.add_argument('--weight_decay',          type=float,    default=1e-2)
     parser.add_argument('--adam_beta1',            type=float,    default=0.9)
-    parser.add_argument('--adam_beta2',            type=float,    default=0.95)
+    parser.add_argument('--adam_beta2',            type=float,    default=0.799)
     parser.add_argument('--adam_eps',              type=float,    default=1e-08)
 
     # Physics-inspired loss 
@@ -47,20 +47,19 @@ def parse_args():
     
     # Data
     parser.add_argument('--normalize',             type=bool,     default=False)
+    parser.add_argument('--sampling_frequency',    type=int,      default=100)
     parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--std_percentage',        type=float,    default=0.1)
-    parser.add_argument('--unroll_length',         type=int,      default=40)
+    parser.add_argument('--unroll_length',         type=int,      default=2)
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--attitude',              type=str,      default='quaternion')
-    parser.add_argument('--delta',                 type=bool,     default=False)
+    parser.add_argument('--delta',                 type=bool,     default=True)
     parser.add_argument('--vehicle_type',          type=str,      default='quadrotor')
     
-
-  
     # Transformer Model
-    parser.add_argument('--d_model',               type=int,      default=512)
-    parser.add_argument('--num_heads',             type=int,      default=2)
-    parser.add_argument('--ffn_hidden',            type=int,      default=1024)
+    parser.add_argument('--d_model',               type=int,      default=256)
+    parser.add_argument('--num_heads',             type=int,      default=4)
+    parser.add_argument('--ffn_hidden',            type=int,      default=512)
 
     args = parser.parse_args()
     for arg in vars(args):

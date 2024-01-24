@@ -3,6 +3,7 @@ import torch
 import pytorch_lightning
 import numpy as np
 
+
 from .loss import MSE
 from .registry import get_model
 
@@ -74,13 +75,21 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
     def forward(self, x, init_memory):
 
-        y_hat = self.model(x, init_memory) 
+        y_hat = self.model(x, init_memory) # B x 10
 
         # Multiply predicted delta quaternion to the previous quaternion
         # y_hat is delta quaternion 
         if self.args.delta == True:
-            y_hat = self.quaternion_product(y_hat, x[:, -1, 3:7])
-        
+
+            # Linear velocity
+            y_hat[:, :3] = y_hat[:, :3].clone() + x[:, -1, :3]
+
+            # Anglular velocity
+            y_hat[:, 7:10] = y_hat[:, 7:10].clone() + x[:, -1, 7:10]
+
+            # Quaternion attitude
+            y_hat[:, 3:7] = self.quaternion_product(y_hat[:, 3:7].clone(), x[:, -1, 3:7].clone())
+
         return y_hat
     
     def configure_optimizers(self):
@@ -117,21 +126,18 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
 
             # Normalize the quaternion
-            y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
+            y_hat[:, 3:7] = y_hat[:, 3:7].clone() / torch.norm(y_hat[:, 3:7].clone(), dim=1, keepdim=True)
             
-            quaternion_gt = y[:, i, 3:7]
-
-            loss = self.loss_fn(y_hat, quaternion_gt)
+            loss = self.loss_fn(y_hat, y[:, i, :-4])
             batch_loss += loss / self.args.unroll_length
+
 
             if i < self.args.unroll_length - 1:
                 
                 u_gt = y[:, i, -4:]
-                linear_velocity_gt = y[:, i, :3]
-                angular_velocity_gt = y[:, i, 7:10]
-
+   
                 # Update x_curr
-                x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
+                x_unroll_curr = torch.cat((y_hat, u_gt), dim=1)
               
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
                 

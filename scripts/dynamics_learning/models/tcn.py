@@ -29,12 +29,13 @@ class MLP(nn.Module):
 class TCN(nn.Module):
     def __init__(self, input_size, encoder_sizes, history_len, decoder_sizes, output_size, kernel_size, dropout, **kwargs):
         super(TCN, self).__init__()
-        self.tcn = TemporalConvNet(input_size, encoder_sizes, kernel_size=kernel_size, dropout=dropout)
+        self.encoder = TemporalConvNet(input_size, encoder_sizes, kernel_size=kernel_size, dropout=dropout)
         self.decoder = MLP(encoder_sizes[-1], history_len, decoder_sizes, output_size, dropout)
+    
 
     def forward(self, x,  args=None):
         x = x.permute(0, 2, 1)  # Transpose input to (batch_size, num_features, history_length)
-        y = self.tcn(x)
+        y = self.encoder(x)
         y = y[:, :, -1]
         y = self.decoder(y) # Take the output of the last time step
         return y

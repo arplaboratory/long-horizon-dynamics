@@ -16,6 +16,7 @@ class LSTM(nn.Module):
     self.hidden_size = encoder_sizes[0]
     self.memory = None
 
+
   def forward(self, x, init_memory):
     h = self.init_memory(x.shape[0], x.device) if init_memory else self.memory
     x, h = self.encoder(x, h)

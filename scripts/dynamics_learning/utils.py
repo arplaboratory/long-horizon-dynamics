@@ -227,6 +227,71 @@ def deltaQuaternion(q1, q2):
 
     return delta_q
 
+def quaternion_log(q):
+    
+        # Compute the log of a quaternion
+        # Input: q = [q_w, q_x, q_y, q_z]
+    
+        # Compute the norm of the quaternion
+    
+        norm_q = np.linalg.norm(q, axis=1, keepdims=True) 
+    
+        # Get vector part of the quaternion
+        q_v = q[:, 1:]
+        q_v_norm = np.linalg.norm(q_v, axis=1, keepdims=True)
+
+        # Compute the angle of rotation
+        theta = 2 * np.arctan2(q_v_norm, q[:, 0:1])
+
+        # Ompute the log of the quaternion
+        q_log = theta * q_v / q_v_norm
+    
+        return q_log
+
+def quaternion_difference(q_t1, q_t0):
+
+    # Compute the rotation q that takes q_t0 to q_t1
+    # Input: q_t1 = [q_w, q_x, q_y, q_z]
+    #        q_t0 = [q_w, q_x, q_y, q_z]
+
+    # Compute the norm of the quaternion
+    norm_q_t1 = np.linalg.norm(q_t1, axis=1, keepdims=True)
+    norm_q_t0 = np.linalg.norm(q_t0, axis=1, keepdims=True)
+
+    # Normalize the quaternion
+    q_t1 = q_t1 / norm_q_t1
+    q_t0 = q_t0 / norm_q_t0
+
+    # q_t0 inverse
+    q_t0_inv = np.concatenate((q_t0[:, 0:1], -q_t0[:, 1:]), axis=1)
+
+    # Compute the difference between the two quaternions
+    q_diff = quaternion_product(q_t1, q_t0_inv)
+
+    return q_diff
+
+def quaternion_product(q_t1, q_t0):
+    
+        # Compute the rotation q that takes q_t0 to q_t1
+        # Input: q_t1 = [q_w, q_x, q_y, q_z]
+        #        q_t0 = [q_w, q_x, q_y, q_z]
+    
+        # Compute the norm of the quaternion
+        norm_q_t1 = np.linalg.norm(q_t1, axis=1, keepdims=True)
+        norm_q_t0 = np.linalg.norm(q_t0, axis=1, keepdims=True)
+    
+        # Normalize the quaternion
+        q_t1 = q_t1 / norm_q_t1
+        q_t0 = q_t0 / norm_q_t0
+    
+        # Compute the quaternion product
+        q_hat = np.concatenate((q_t1[:, 0:1] * q_t0[:, 0:1] - q_t1[:, 1:2] * q_t0[:, 1:2] - q_t1[:, 2:3] * q_t0[:, 2:3] - q_t1[:, 3:4] * q_t0[:, 3:4],
+                                q_t1[:, 0:1] * q_t0[:, 1:2] + q_t1[:, 1:2] * q_t0[:, 0:1] + q_t1[:, 2:3] * q_t0[:, 3:4] - q_t1[:, 3:4] * q_t0[:, 2:3],
+                                q_t1[:, 0:1] * q_t0[:, 2:3] - q_t1[:, 1:2] * q_t0[:, 3:4] + q_t1[:, 2:3] * q_t0[:, 0:1] + q_t1[:, 3:4] * q_t0[:, 1:2],
+                                q_t1[:, 0:1] * q_t0[:, 3:4] + q_t1[:, 1:2] * q_t0[:, 2:3] - q_t1[:, 2:3] * q_t0[:, 1:2] + q_t1[:, 3:4] * q_t0[:, 0:1]), axis=1)
+    
+        return q_hat
+
 if __name__=="__main__":
 
 
