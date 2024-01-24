@@ -31,6 +31,7 @@ class TCN(nn.Module):
         super(TCN, self).__init__()
         self.tcn = TemporalConvNet(input_size, encoder_sizes, kernel_size=kernel_size, dropout=dropout)
         self.decoder = MLP(encoder_sizes[-1], history_len, decoder_sizes, output_size, dropout)
+    
 
     def forward(self, x,  args=None):
         x = x.permute(0, 2, 1)  # Transpose input to (batch_size, num_features, history_length)
