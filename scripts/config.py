@@ -7,7 +7,7 @@ def parse_args():
     # architecture
     parser.add_argument('-N', '--model_type',      type=str,       default='tcn')
     parser.add_argument('--encoder_sizes',         type=list,      default='512,256,256')
-    parser.add_argument('--decoder_sizes',         type=list,      default='512,256,256')
+    parser.add_argument('--decoder_sizes',         type=list,      default='1024,512,512')
     parser.add_argument('--encoder_output',        type=str,       default='output')
     parser.add_argument('--num_layers',            type=int,       default=4)
     parser.add_argument('--kernel_size',           type=int,       default=2)
@@ -56,12 +56,10 @@ def parse_args():
     parser.add_argument('--delta',                 type=bool,     default=True)
     parser.add_argument('--vehicle_type',          type=str,      default='neurobem')
     
-
-  
     # Transformer Model
-    parser.add_argument('--d_model',               type=int,      default=512)
-    parser.add_argument('--num_heads',             type=int,      default=2)
-    parser.add_argument('--ffn_hidden',            type=int,      default=1024)
+    parser.add_argument('--d_model',               type=int,      default=256)
+    parser.add_argument('--num_heads',             type=int,      default=4)
+    parser.add_argument('--ffn_hidden',            type=int,      default=512)
 
     args = parser.parse_args()
     for arg in vars(args):

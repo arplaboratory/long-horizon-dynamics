@@ -4,17 +4,42 @@ import math
 
 class Transformer(nn.Module):
 
-    def __init__(self, input_size, encoder_dim, num_heads, history_length, ffn_hidden, num_layers, dropout):
+    def __init__(self, input_size, encoder_dim, num_heads, history_length, ffn_hidden, num_layers, dropout, decoder_sizes, output_size, **kwargs):
         super(Transformer, self).__init__()
 
         self.encoder = Encoder(input_size, encoder_dim, num_heads, history_length, ffn_hidden, num_layers, dropout)
-
-    def forward(self, x):
+        self.decoder = MLP(encoder_dim, history_length, decoder_sizes, output_size, dropout)
+        
+    def forward(self, x, args=None):
 
         x_encoded = self.encoder(x)
+        x_decoded = self.decoder(x_encoded[:, -1, :])
+
+
+        return x_decoded
     
-        return x_encoded[:, -1, :]
-    
+class MLP(nn.Module):
+  def __init__(self, input_size, history_len, decoder_sizes, output_size, dropout, **kwargs):
+    super(MLP, self).__init__()
+    self.model = self.make(input_size, decoder_sizes, output_size, dropout)
+
+  def make(self, input_size, decoder_sizes, output_size, dropout):
+    layers = []
+    layers.append(nn.Linear(input_size, decoder_sizes[0]))
+    layers.append(nn.GELU())
+    layers.append(nn.Dropout(dropout))
+    for i in range(len(decoder_sizes) - 1):
+      layers.append(nn.Linear(decoder_sizes[i], decoder_sizes[i + 1]))
+      layers.append(nn.GELU())
+      layers.append(nn.Dropout(dropout))
+    layers.append(nn.Linear(decoder_sizes[-1], output_size))
+    return nn.Sequential(*layers)
+
+  def forward(self, x, args=None):
+    x = x.reshape(x.shape[0], -1)
+    x = self.model(x)
+    return x
+  
 
 class Encoder(nn.Module):
     def __init__(self, input_size, d_model, num_heads, history_length, ffn_hidden, n_layers, dropout):
