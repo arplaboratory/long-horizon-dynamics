@@ -20,7 +20,14 @@ class GRU(nn.Module):
     h = self.init_memory(x.shape[0], x.device) if init_memory else self.memory
     x, h = self.encoder(x, h)
     self.memory = h
-    x = self.decoder(x) if self.encoder_output == 'output' else self.decoder(h.permute(1, 0, 2))
+
+    if self.encoder_output == 'output':
+      x = x[:, -1, :]
+    else:
+      x = h[0][-1]
+
+    x = self.decoder(x)
+    
     return x
 
   def init_memory(self, batch_size, device):
