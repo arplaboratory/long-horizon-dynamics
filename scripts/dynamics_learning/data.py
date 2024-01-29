@@ -36,6 +36,9 @@ class DynamicsDataset(Dataset):
 
         x = self.X[idx, :, :]
         y = self.Y[idx, :, :]
+
+        if self.augmentations:
+            x = self.augment(x)
             
         return x, y
         
@@ -45,6 +48,17 @@ class DynamicsDataset(Dataset):
             Y = hf['outputs'][:]
         return X, Y
     
+    def augment(self, x):
+
+        for h in range(self.history_length):
+            
+            for feature_index in range(self.state_len):
+                if feature_index < 3 or feature_index > 6:
+                    noise_std = self.std_percentage * np.abs(x[h, feature_index])
+
+                    x[h, feature_index] += np.random.normal(0, noise_std)
+
+        return x
     
 def load_dataset(mode, data_path, hdf5_file, args, num_workers, pin_memory):
     print('Generating', mode, 'data ...')
