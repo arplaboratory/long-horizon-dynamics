@@ -10,7 +10,13 @@ class GRU(nn.Module):
     self.encoder = nn.GRU(input_size=input_size, hidden_size=encoder_sizes[0],
                           num_layers=num_layers, batch_first=True, dropout=dropout)
     decoder_input = history_len if encoder_output == 'output' else num_layers
-    self.decoder = MLP(encoder_sizes[0], decoder_input, decoder_sizes, output_size, dropout)
+    if encoder_output == 'hidden':
+      decoder_input = 2 * (encoder_sizes[0] / history_len)
+    else:
+      decoder_input = encoder_sizes[0] / history_len
+
+    self.decoder = MLP(decoder_input, history_len, decoder_sizes, output_size, dropout)
+    self.dropout = nn.Dropout(dropout)
     self.encoder_output = encoder_output
     self.num_layers = num_layers
     self.hidden_size = encoder_sizes[0]
@@ -21,12 +27,11 @@ class GRU(nn.Module):
     x, h = self.encoder(x, h)
     self.memory = h
 
-    if self.encoder_output == 'output':
-      x = x[:, -1, :]
-    else:
-      x = h[0][-1]
 
-    x = self.decoder(x)
+    x_encoder = h[-1] if self.encoder_output == 'hidden' else x[:, -1, :]
+    x_encoder = self.dropout(x_encoder)
+
+    x = self.decoder(x_encoder)
     
     return x
 

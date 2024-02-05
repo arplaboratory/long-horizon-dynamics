@@ -6,7 +6,8 @@ import sys
 from tqdm import tqdm
 from dynamics_learning.utils import Euler2Quaternion, deltaQuaternion
 from config import parse_args
-
+from dynamics_learning.loss import MSE
+import torch 
 
 SAMPLING_FREQUENCY = {'fixed_wing': 100, 'quadrotor': 100, 'neurobem': 400}
 
@@ -68,6 +69,9 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, u
             data_np = data_np[::int(SAMPLING_FREQUENCY[dataset]/sampling_frequency), :]
 
             num_samples = data_np.shape[0] - history_length - unroll_length
+            if num_samples <= 0:
+                print(f"Skipping file {file} due to insufficient data")
+                continue
 
             X = np.zeros((num_samples, history_length, data_np.shape[1]))
             Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
@@ -167,30 +171,46 @@ if __name__ == "__main__":
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + args.vehicle_type + "/" 
     
-    #csv_to_hdf5(args, data_path)
+    csv_to_hdf5(args, data_path)
 
 
-    X, Y = load_hdf5(data_path + 'train/', 'train.h5')
+    X, Y = load_hdf5(data_path + 'test/', 'test.h5')
     
     print("Shape of the input data: ",  X.shape)
     print("Shape of the output data: ", Y.shape)
+
+    print("Input data: ",  X[0, :, :])
+    print("Output data: ", Y[0, :, :])
 
 
     ############## Data Analysis ##############
 
     # Absolute difference between the last state of the input and the output
-    print("Absolute difference between the last state of the input and the output")
-    print(np.mean(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
+    # print("Absolute difference between the last state of the input and the output")
+    # print(np.mean(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
 
-    # Varience 
-    print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
+    # # Varience 
+    # print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
 
-    print("Min and Max values for each of the output features")
-    print("Minimum")
-    print(np.min(Y, axis=0))
+    # MSE beteween the last state of the input and the output
+    print("MSE")
+    # Take square of the difference between the last state of the input and the output and sum over all the features and then take the mean
+    loss = MSE()
+    
+    # Convert to torch tensor
+    X = torch.tensor(X)
+    Y = torch.tensor(Y)
 
-    print("Maximum")
-    print(np.max(Y, axis=0))
+    print(loss(X[:, -1, :-4], Y[:, 0, :-4]))
+
+
+
+    # print("Min and Max values for each of the output features")
+    # print("Minimum")
+    # print(np.min(Y, axis=0))
+
+    # print("Maximum")
+    # print(np.max(Y, axis=0))
 
 
     # # Print the MSE between the last state of the input and the output

@@ -101,6 +101,11 @@ if __name__ == "__main__":
     print(experiment_path)
     print("Testing Dynamics model:", model_path)
     args = load_args(experiment_path + "args.txt")
+
+    model_name = args.model_type + "_" + str(args.history_length) + "_" + args.vehicle_type + "_" + str(args.unroll_length) + ".npy"
+    plotting_data_path = experiment_path + "plotting_data/"
+
+    args.unroll_length = 60
     
     # device
     args.device = "cuda:0"
@@ -202,8 +207,18 @@ if __name__ == "__main__":
             sample_loss.append(batch_loss.item())
             copounding_error_per_sample.append(compounding_error)
 
+
+    #################################################################################################################################################
+    # Print mean of sample loss
+    print("Mean Sample Loss: ", np.mean(sample_loss))
+    
+    
     #################################################################################################################################################
     copounding_error_per_sample = np.array(copounding_error_per_sample)
+
+    # Save compound error per sample as numpy array
+    np.save(plotting_data_path + model_name, copounding_error_per_sample)
+
     print("Mean Copounding Error per sample: ", np.mean(copounding_error_per_sample, axis=0))
     # Print varience of copounding error per sample
     print("Variance Copounding Error per sample: ", np.var(copounding_error_per_sample, axis=0))

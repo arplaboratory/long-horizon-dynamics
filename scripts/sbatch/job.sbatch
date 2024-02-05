@@ -13,9 +13,9 @@ cat <<EOT > $temp_script
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=20:00:00
+#SBATCH --time=07:30:00
 #SBATCH --gres=gpu:a100:1
-#SBATCH --mem=8GB
+#SBATCH --mem=20GB
 #SBATCH --job-name=run_$R
 #SBATCH --output=run_$R.out
 #SBATCH --mail-type=ALL

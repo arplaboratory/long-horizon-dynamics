@@ -91,7 +91,7 @@ if __name__ == "__main__":
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + vehicle_type + "/"
-    experiment_path = experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
+    experiment_path = '/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/archive_results/NEUROBEM/20240104-121143_1/'#experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
@@ -143,8 +143,8 @@ if __name__ == "__main__":
     model.eval()
     with torch.no_grad():
 
-        x = X[100, :, :]
-        y = Y[100, :, :]
+        x = X[1000, :, :]
+        y = Y[1000, :, :]
 
         x = x.unsqueeze(0)
         x_curr = x 
@@ -152,7 +152,8 @@ if __name__ == "__main__":
         for j in range(args.unroll_length):
             
             y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
-            
+
+          
             linear_velocity_gt =  y[j, :3]
             angular_velocity_gt = y[j, 7:10]
 
@@ -187,9 +188,9 @@ if __name__ == "__main__":
     fig.suptitle("Linear Velocity", x=0.5, y=0.95)
     
     # zoom out the plot
-    ax[0].set_ylim([-2.0, 2.0])
-    ax[1].set_ylim([-2.0, 2.0])
-    ax[2].set_ylim([-2.0, 2.0])
+    # ax[0].set_ylim([-11.0, 11.0])
+    # ax[1].set_ylim([-11.0, 11.0])
+    # ax[2].set_ylim([-11.0, 11.0])
     
 
     ax[0].plot(Y_plot[:, 0], label="Ground Truth", color=colors[1], linewidth=4.5)
@@ -210,9 +211,9 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(nrows=3, ncols=1)
     fig.suptitle("Angular Velocity", x=0.5, y=0.95)
     # zoom out the plot
-    ax[0].set_ylim([-2.0, 2.0])
-    ax[1].set_ylim([-2.0, 2.0])
-    ax[2].set_ylim([-2.0, 2.0])
+    # ax[0].set_ylim([-2.0, 2.0])
+    # ax[1].set_ylim([-2.0, 2.0])
+    # ax[2].set_ylim([-2.0, 2.0])
     
     ax[0].plot(Y_plot[:, 3], label="Ground Truth", color=colors[1], linewidth=4.5)
     ax[0].plot(Y_hat_plot[:, 3], label="Predicted", color=colors[2], linewidth=4.5, linestyle=line_styles[1])
