@@ -94,16 +94,16 @@ if __name__ == "__main__":
     data_path = resources_path + "data/" + vehicle_type + "/"
     experiment_path = experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
+    plotting_data_path = experiment_path + "plotting_data/"
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
-                        os.path.join(experiment_path, "plots", "testset")])
+                        os.path.join(experiment_path, "plots", "testset"), plotting_data_path])
 
     print(experiment_path)
     print("Testing Dynamics model:", model_path)
     args = load_args(experiment_path + "args.txt")
 
     model_name = args.model_type + "_" + str(args.history_length) + "_" + args.vehicle_type + "_" + str(args.unroll_length) + ".npy"
-    plotting_data_path = experiment_path + "plotting_data/"
 
     args.unroll_length = 60
     

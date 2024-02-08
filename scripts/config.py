@@ -6,12 +6,12 @@ def parse_args():
 
     # architecture
     parser.add_argument('-N', '--model_type',      type=str,       default='lstm')
-    parser.add_argument('--encoder_sizes',         type=list,      default='128,64,64,64')
-    parser.add_argument('--decoder_sizes',         type=list,      default='64,32,32')
+    parser.add_argument('--encoder_sizes',         type=list,      default='256,128,64')
+    parser.add_argument('--decoder_sizes',         type=list,      default='256,128,64')
     parser.add_argument('--encoder_output',        type=str,       default='output')
     parser.add_argument('--num_layers',            type=int,       default=4)
     parser.add_argument('--kernel_size',           type=int,       default=3)
-    parser.add_argument('--dropout',               type=float,     default=0.2)
+    parser.add_argument('--dropout',               type=float,     default=0.25)
 
     # training
     parser.add_argument('-r', '--run_id',          type=int,      default=1)
@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
     parser.add_argument('--warmup_lr',             type=float,    default=1e-3)
     parser.add_argument('--cosine_lr',             type=float,    default=1e-4)
-    parser.add_argument('--warmup_steps',          type=int,      default=5000)
+    parser.add_argument('--warmup_steps',          type=int,      default=10000)
     parser.add_argument('--cosine_steps',          type=int,      default=30000)
     parser.add_argument('--gradient_clip_val',     type=float,    default=1.0)
     parser.add_argument('--weight_decay',          type=float,    default=1e-4)
@@ -50,11 +50,11 @@ def parse_args():
     parser.add_argument('--sampling_frequency',    type=int,      default=100)
     parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--std_percentage',        type=float,    default=0.1)
-    parser.add_argument('--unroll_length',         type=int,      default=60)
+    parser.add_argument('--unroll_length',         type=int,      default=10)
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--attitude',              type=str,      default='quaternion')
     parser.add_argument('--delta',                 type=bool,     default=True)
-    parser.add_argument('--vehicle_type',          type=str,      default='quadrotor')
+    parser.add_argument('--vehicle_type',          type=str,      default='neurobem')
     
     # Transformer Model
     parser.add_argument('--d_model',               type=int,      default=512)

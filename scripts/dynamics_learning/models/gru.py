@@ -12,8 +12,11 @@ class GRU(nn.Module):
     decoder_input = history_len if encoder_output == 'output' else num_layers
     if encoder_output == 'hidden':
       decoder_input = 2 * (encoder_sizes[0] / history_len)
-    else:
+    elif encoder_output == 'output':
       decoder_input = encoder_sizes[0] / history_len
+    
+    else:
+      decoder_input = encoder_sizes[0]
 
     self.decoder = MLP(decoder_input, history_len, decoder_sizes, output_size, dropout)
     self.dropout = nn.Dropout(dropout)
@@ -28,7 +31,15 @@ class GRU(nn.Module):
     self.memory = h
 
 
-    x_encoder = h[-1] if self.encoder_output == 'hidden' else x[:, -1, :]
+    if self.encoder_output == 'hidden':
+      x_encoder = torch.cat([h[0][-1], h[1][-1]], dim=1)
+
+    elif self.encoder_output == 'output':
+      x_encoder = x[:, -1, :]
+
+    else:
+      x_encoder = x
+      
     x_encoder = self.dropout(x_encoder)
 
     x = self.decoder(x_encoder)
