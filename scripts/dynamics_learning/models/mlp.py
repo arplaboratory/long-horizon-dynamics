@@ -4,7 +4,7 @@ import torch.nn as nn
 class MLP(nn.Module):
   def __init__(self, input_size, history_len, decoder_sizes, output_size, dropout, **kwargs):
     super(MLP, self).__init__()
-    self.model = self.make(input_size * history_len, decoder_sizes, output_size, dropout)
+    self.model = self.make(int(input_size * history_len), decoder_sizes, output_size, dropout)
 
   def make(self, input_size, decoder_sizes, output_size, dropout):
     layers = []
