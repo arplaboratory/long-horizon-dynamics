@@ -5,6 +5,7 @@ import numpy as np
 
 from .loss import MSE
 from .registry import get_model
+from .utils import quaternion_difference, quaternion_log
 
 warnings.filterwarnings("ignore")
 
@@ -38,7 +39,7 @@ OUTPUT_FEATURES = {
 
 class DynamicsLearning(pytorch_lightning.LightningModule):
     def __init__(self, args, resources_path, experiment_path, 
-                 input_size, output_size, valid_data, max_iterations):
+                 input_size, output_size, valid_data, max_iterations, test_data=None):
         super().__init__()
         self.args = args
         self.resources_path = resources_path
@@ -71,6 +72,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.val_full_gt = []
 
         self.test_predictions = []
+        self.compounding_error = []
 
     def forward(self, x, init_memory):
 
@@ -167,11 +169,72 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
     
     def test_step(self, test_batch, batch_idx, dataloader_idx=0):
         
-        _, batch_loss = self.unroll_step(test_batch)
-        self.log("test_batch_loss", batch_loss, on_step=True, prog_bar=True, logger=True)
+        batch_loss, compounding_error = self.eval_trajectory(test_batch)
+        self.log("Quaternion Error", batch_loss, on_step=True, prog_bar=True, logger=True)
 
+
+        # Save mean compounding error per batch
+        self.compounding_error.append(np.mean(compounding_error))
 
         return batch_loss
+    
+    def eval_trajectory(self, test_batch):
+
+        x, y = test_batch
+        x = x.float()
+        y = y.float()
+
+        x_curr = x 
+        batch_loss = 0.0
+
+        abs_error = []
+        compounding_error = []
+
+        for i in range(self.args.unroll_length):
+            y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
+
+            # Normalize the quaternion
+            y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
+
+            quaternion_gt = y[:, i, 3:7]
+
+            q_error = quaternion_difference(y_hat, quaternion_gt)
+            q_error_log = quaternion_log(q_error)
+
+
+            loss = torch.norm(q_error_log, dim=1, keepdim=False)
+            loss = torch.mean(loss, dim=0, keepdim=False)
+
+
+            batch_loss += loss / self.args.unroll_length
+
+            compounding_error.append(loss.detach().cpu().numpy())
+            
+            # Normalize the quaternion
+            y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
+
+            if i < self.args.unroll_length - 1:
+                    
+                    u_gt = y[:, i, -4:]
+                    linear_velocity_gt = y[:, i, :3]
+                    angular_velocity_gt = y[:, i, 7:10]
+    
+                    # Update x_curr
+                    x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
+                
+                    x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
+
+        return batch_loss, compounding_error    
+
+
+
+
+
+
+
+
+
+
             
     def on_train_epoch_start(self):
         pass

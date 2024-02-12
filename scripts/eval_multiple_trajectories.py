@@ -333,8 +333,8 @@ if __name__ == "__main__":
                         label='Variance Copounding Error')
 
         ax.set_xlabel("No. of Recursive Predictions")
-        ax.set_ylabel("MSE")
-        ax.set_title("MSE Analysis over Recursive Predictions")
+        ax.set_ylabel("Quaternion Error")
+        ax.set_title("Quaternion Error Analysis")
         ax.legend()
 
         # Save the plot
@@ -352,9 +352,9 @@ if __name__ == "__main__":
         ax.bar(np.arange(len(sample_loss)), sample_loss, color='skyblue', alpha=0.7, edgecolor='black')
 
         ax.set_xlabel("Sample")
-        ax.set_ylabel("MSE")
+        ax.set_ylabel("Quaternion Error")
         # Set title with the unroll length
-        ax.set_title(f"MSE over {args.unroll_length} Recursive Predictions")
+        ax.set_title(f"Quaternion Error Analysis")
 
         # Adding gridlines
         ax.grid(axis='y', linestyle='--', alpha=0.7)

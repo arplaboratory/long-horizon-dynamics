@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
-
+import torch
 
 INPUT_FEATURES = ['u', 'v', 'w',
                       'r11', 'r21', 'r31', 
@@ -226,6 +226,94 @@ def deltaQuaternion(q1, q2):
     delta_q = q2 * q1_inv
 
     return delta_q
+
+def quaternion_product(q1, q2):
+    
+        # Compute the product of two quaternions
+        # Input: q1 = [q_w, q_x, q_y, q_z]
+        #        q2 = [q_w, q_x, q_y, q_z]
+    
+        w1, x1, y1, z1 = q1[:, 0:1], q1[:, 1:2], q1[:, 2:3], q1[:, 3:]
+        w2, x2, y2, z2 = q2[:, 0:1], q2[:, 1:2], q2[:, 2:3], q2[:, 3:]
+
+        # Compute the product of the two quaternions
+        q_prod = torch.cat((w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+                            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2), dim=1)
+        
+        return q_prod
+
+def quaternion_difference(q_pred, q_gt):
+
+    # Compute the difference between two quaternions
+    # Input: q_pred = [q_w, q_x, q_y, q_z]
+    #        q_gt   = [q_w, q_x, q_y, q_z]
+
+    # Compute the norm of the quaternion
+    norm_q_pred = torch.norm(q_pred, dim=1, keepdim=True) 
+    norm_q_gt = torch.norm(q_gt, dim=1, keepdim=True) 
+
+    # Normalize the quaternion
+    q_pred = q_pred / norm_q_pred
+    q_gt = q_gt / norm_q_gt
+
+    # q_pred inverse
+    q_pred_inv = torch.cat((q_pred[:, 0:1], -q_pred[:, 1:]), dim=1)
+
+    # Compute the difference between the two quaternions
+    q_diff = quaternion_product(q_gt, q_pred_inv)
+
+    return q_diff
+
+def quaternion_log(q):
+        
+        # Compute the log of a quaternion
+        # Input: q = [q_w, q_x, q_y, q_z]
+        
+        # Compute the norm of the quaternion
+        
+        # norm_q = torch.norm(q, dim=1, keepdim=True) 
+        
+        # Get vector part of the quaternion
+        q_v = q[:, 1:]
+        q_v_norm = torch.norm(q_v, dim=1, keepdim=True)
+        
+        # Compute the angle of rotation
+        theta = 2 * torch.atan2(q_v_norm, q[:, 0:1])
+        
+        # Compute the log of the quaternion
+        q_log = theta * q_v / q_v_norm
+        
+        return q_log
+
+def quaternion_error(q_pred, q_gt):
+
+    # Compute dot product between two quaternions
+    # Input: q_pred = [q_w, q_x, q_y, q_z]
+    #        q_gt   = [q_w, q_x, q_y, q_z]
+
+    # Compute the norm of the quaternion
+    norm_q_pred = torch.norm(q_pred, dim=1, keepdim=True)
+    norm_q_gt = torch.norm(q_gt, dim=1, keepdim=True)
+
+    # Normalize the quaternion
+    q_pred = q_pred / norm_q_pred
+    q_gt = q_gt / norm_q_gt
+
+    # Compute the dot product between the two quaternions 
+    q_dot = torch.sum(q_pred * q_gt, dim=1, keepdim=True)
+
+    # Compute the angle between the two quaternions
+    theta = torch.acos(torch.abs(q_dot))
+
+    # min_theta = torch.min(theta, np.pi - theta)
+
+    # COnvert to degrees
+    # theta = theta * 180 / np.pi
+
+    return theta
+
 
 if __name__=="__main__":
 

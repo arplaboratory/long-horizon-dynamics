@@ -117,6 +117,7 @@ if __name__ == "__main__":
     print(experiment_path)
     print("Testing Dynamics model:", model_path)
     args = load_args(experiment_path + "args.txt")
+    args.unroll_length = 60
     
     # device
     args.device = "cuda:0"
@@ -160,8 +161,8 @@ if __name__ == "__main__":
     model.eval()
     with torch.no_grad():
 
-        x = X[200, :, :]
-        y = Y[200, :, :]
+        x = X[2500, :, :]
+        y = Y[2500, :, :]
 
         x = x.unsqueeze(0)
         x_curr = x 
