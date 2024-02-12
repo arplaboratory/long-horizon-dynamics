@@ -71,6 +71,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.val_full_gt = []
 
         self.test_predictions = []
+        self.compounding_error = []
 
     def forward(self, x, init_memory):
 
@@ -142,6 +143,45 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             preds.append(y_hat)
             
         return preds, batch_loss
+    
+    def eval_trajectory(self, test_batch):
+
+        x, y = test_batch
+        x = x.float()
+        y = y.float()
+
+        x_curr = x 
+        batch_loss = 0.0
+
+        compounding_error = []
+
+        for i in range(self.args.unroll_length):
+            y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
+      
+            linear_velocity_gt =  y[:, i, :3]
+            angular_velocity_gt = y[:, i, 7:10]
+
+            velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
+
+            loss = self.loss_fn(y_hat, velocity_gt)
+            batch_loss += loss / self.args.unroll_length
+
+            compounding_error.append(loss.detach().cpu().numpy())
+
+            if i < self.args.unroll_length - 1:
+                
+                linear_velocity_pred = y_hat[:, :3]
+                angular_velocity_pred = y_hat[:, 3:]
+
+                u_gt = y[:, i, -4:]
+                attitude_gt = y[:, i, 3:7]
+
+                # Update x_curr
+                x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
+              
+                x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
+                
+        return batch_loss, compounding_error  
 
     def validation_step(self, valid_batch, batch_idx, dataloader_idx=0):
         
@@ -152,8 +192,11 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
     
     def test_step(self, test_batch, batch_idx, dataloader_idx=0):
         
-        _, batch_loss = self.unroll_step(test_batch)
-        self.log("test_batch_loss", batch_loss, on_step=True, prog_bar=True, logger=True)
+        batch_loss, compounding_error = self.eval_trajectory(test_batch)
+        self.log("MSE", batch_loss, on_step=True, prog_bar=True, logger=True)
+
+        # Save mean compounding error per batch
+        self.compounding_error.append(np.mean(compounding_error))
 
         return batch_loss
             
