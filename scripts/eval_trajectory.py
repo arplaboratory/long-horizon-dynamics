@@ -167,7 +167,7 @@ if __name__ == "__main__":
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + vehicle_type + "/"
-    experiment_path = "/home/prat/arpl/TII/ws_dynamics/FW-DYNAMICS_LEARNING/resources/experiments/20240110-021809_1/" #max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
+    experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
@@ -199,7 +199,7 @@ if __name__ == "__main__":
         resources_path,
         experiment_path,
         input_size=X.shape[-1],
-        output_size=4,
+        output_size=10,
         valid_data=Y,
         max_iterations=1,
     )
@@ -211,16 +211,20 @@ if __name__ == "__main__":
     model = model.to(args.device)
 
     input_shape = (1, args.history_length, X.shape[-1])
-    output_shape = (1, 4)
+    output_shape = (1, 10)
 
     # Y_plot = np.zeros((X.shape[0] - args.history_length,     6))
     # Y_hat_plot = np.zeros((X.shape[0] - args.history_length, 6))
 
     mse_loss = MSE()
-    sample_loss = []
+    sample_loss_attitude = []
+    sample_loss_velocity = []
 
     copounding_error_per_sample = []
     mean_abs_error_per_sample = []  
+
+    velocity_error = []
+    attitude_error = []
 
     model.eval()
     with torch.no_grad():
@@ -232,48 +236,75 @@ if __name__ == "__main__":
 
             x = x.unsqueeze(0)
             x_curr = x 
-            batch_loss = 0.0
+            batch_loss_attitude = 0.0
+            batch_loss_velocity = 0.0
 
                         
-            abs_error = []
+            abs_error_velocity = []
+            abs_error_attitude = []
 
-            compounding_error = []
+            compounding_error_velocity = []
+            compounding_error_attitude = []
 
             for j in range(args.unroll_length):
                 
                 y_hat = model.forward(x_curr, init_memory=True if j == 0 else False)
-                attitude_gt = y[j, 3:7]
                 
-                q_error = quaternion_difference(y_hat, attitude_gt.unsqueeze(0))
+                
+                linear_velocity_pred = y_hat[:, :3]
+                attitude_pred = y_hat[:, 3:7]
+                angular_velocity_pred = y_hat[:, 7:10]
+                velocity_pred = torch.cat((linear_velocity_pred, angular_velocity_pred), dim=1)
+               
+                
+                linear_velocity_gt = y[j, :3].view(-1, 3)
+                attitude_gt = y[j, 3:7]
+                angular_velocity_gt = y[j, 7:10].view(-1, 3)
+                velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
+
+                
+                q_error = quaternion_difference(attitude_pred, attitude_gt.unsqueeze(0))
                 q_error_log = quaternion_log(q_error)
 
                 # q_error = quaternion_error(y_hat, attitude_gt.unsqueeze(0))
                 # abs_error.append(torch.norm(q_error_log, dim=1, keepdim=True))
-                abs_error.append(torch.abs(q_error_log))
+                abs_error_attitude.append(torch.abs(q_error_log))
+
                 
-                loss = torch.norm(q_error_log, dim=1, keepdim=False)[0] #mse_loss(q_error_log)
-                batch_loss += loss / args.unroll_length
-                compounding_error.append(loss.cpu().numpy())
+                loss_attitde = torch.norm(q_error_log, dim=1, keepdim=False)[0] #mse_loss(q_error_log)
+                batch_loss_attitude += loss_attitde / args.unroll_length
+                compounding_error_attitude.append(loss_attitde.cpu().numpy())
+
+                loss_velocity = mse_loss(velocity_pred, velocity_gt)
+                batch_loss_velocity += loss_velocity / args.unroll_length
+                compounding_error_velocity.append(loss_velocity.cpu().numpy())
 
                 # Normalize the quaternion
-                y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
+                attitude_pred = attitude_pred / torch.norm(attitude_pred, dim=1, keepdim=True)
+
 
                 if j < args.unroll_length - 1:
                     
-                    linear_velocity_gt = y[j, :3].view(1, 3)
-                    angular_velocity_gt = y[j, 7:10].view(1, 3)
-
                     u_gt = y[j, -4:].unsqueeze(0)
 
                     # Update x_curr
-                    x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
+                    x_unroll_curr = torch.cat((linear_velocity_pred, attitude_pred, angular_velocity_pred, u_gt), dim=1)
                 
                     x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
 
-            mean_abs_error_per_sample.append(torch.mean(torch.cat(abs_error, dim=0), dim=0).cpu().numpy())
-            sample_loss.append(batch_loss.item())
-            copounding_error_per_sample.append(compounding_error)
+            # mean_abs_error_per_sample.append(torch.mean(torch.cat(abs_error, dim=0), dim=0).cpu().numpy())
+            sample_loss_attitude.append(batch_loss_attitude.item())
+            sample_loss_velocity.append(batch_loss_velocity.item())
 
+    
+    
+    
+    print("Mean Attitude Error per sample: ", np.mean(sample_loss_attitude))
+    print("Variance Attitude Error per sample: ", np.var(sample_loss_attitude))
+    print("Mean Velocity Error per sample: ", np.mean(sample_loss_velocity))
+    print("Variance Velocity Error per sample: ", np.var(sample_loss_velocity))
+
+    '''
     #################################################################################################################################################
     copounding_error_per_sample = np.array(copounding_error_per_sample)
     print("Mean Copounding Error per sample: ", np.mean(copounding_error_per_sample, axis=0))
@@ -327,3 +358,4 @@ if __name__ == "__main__":
     plt.close()
 
     #################################################################################################################################################
+'''
