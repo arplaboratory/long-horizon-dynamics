@@ -72,6 +72,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         self.test_predictions = []
         self.compounding_error = []
+        self.mean_abs_error_per_sample = []
 
     def forward(self, x, init_memory):
 
@@ -154,6 +155,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         batch_loss = 0.0
 
         compounding_error = []
+        abs_error = {}
 
         for i in range(self.args.unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
@@ -163,8 +165,13 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
             velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
 
+            abs_error[i+1] = torch.mean(torch.abs(y_hat - velocity_gt), dim=0)
+
             loss = self.loss_fn(y_hat, velocity_gt)
             batch_loss += loss / self.args.unroll_length
+
+            # Mean absolute error
+
 
             compounding_error.append(loss.detach().cpu().numpy())
 
@@ -180,6 +187,9 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
               
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
+        
+        
+        self.mean_abs_error_per_sample.append(abs_error)
                 
         return batch_loss, compounding_error  
 
@@ -196,7 +206,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.log("MSE", batch_loss, on_step=True, prog_bar=True, logger=True)
 
         # Save mean compounding error per batch
-        self.compounding_error.append(np.mean(compounding_error))
+        self.compounding_error.append(compounding_error)
 
         return batch_loss
             
@@ -232,6 +242,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         #     else:
         #         # Plot predictions and ground truth
         #         self.plot_predictions(val_predictions_np)
+            
+    def on_test_epoch_end(self) -> None:
+
+        # Print list of compounding errors
+        print("Mean compounding error per sample: ", self.mean_abs_error_per_sample[0])
+
 
     def plot_predictions(self, val_predictions, val_full_gt_np=None):
         
