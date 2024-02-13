@@ -4,12 +4,12 @@ import numpy as np
 import h5py
 import sys
 from tqdm import tqdm
-from dynamics_learning.utils import Euler2Quaternion, quaternion_log, quaternion_difference, quaternion_product
+from dynamics_learning.utils import Euler2Quaternion, deltaQuaternion
 from config import parse_args
+from dynamics_learning.loss import MSE
+import torch 
 
 SAMPLING_FREQUENCY = {'fixed_wing': 100, 'quadrotor': 100, 'neurobem': 400}
-
-
 
 def extract_data(data, dataset_name):
     try:
@@ -45,10 +45,11 @@ def extract_data(data, dataset_name):
 
 def csv_to_hdf5(args, data_path):
 
-    hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
-    hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
-    hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
-    hdf5_recursive(data_path, 'test/',  'test_eval.h5', args.vehicle_type)
+    # hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    # hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    # hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
+    hdf5_trajectories(data_path, 'test/', args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
+    # hdf5_recursive(data_path, 'test/',  'test_eval.h5', args.vehicle_type)
 
 def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, unroll_length, sampling_frequency):
 
@@ -61,14 +62,22 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, u
             csv_file_path = os.path.join(data_path + folder_name, file)
             data = pd.read_csv(csv_file_path)
 
+            # Modify time to start from 0
+            data['t'] = data['t'] - data['t'].values[0]
+
+            data['t'] = pd.to_datetime(data['t'], unit='s')
+
+            data.set_index('t', inplace=True)
+            data = data.resample('0.01S').mean()
+            data.reset_index(inplace=True)
+
             velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
 
             data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
-
-            # Sampling frequency
-            data_np = data_np[::int(SAMPLING_FREQUENCY[dataset]/sampling_frequency), :]
-
             num_samples = data_np.shape[0] - history_length - unroll_length
+            if num_samples <= 0:
+                print(f"Skipping file {file} due to insufficient data")
+                continue
 
             X = np.zeros((num_samples, history_length, data_np.shape[1]))
             Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
@@ -102,6 +111,73 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, u
         
     return X, Y
 
+def hdf5_trajectories(data_path, folder_name, dataset, attitude, history_length, unroll_length, sampling_frequency):
+
+    # load the data
+    for file in tqdm(os.listdir(data_path + folder_name)):
+        if file.endswith(".csv"):
+            csv_file_path = os.path.join(data_path + folder_name, file)
+            data = pd.read_csv(csv_file_path)
+
+            # Modify time to start from 0
+            data['t'] = data['t'] - data['t'].values[0]
+
+            data['t'] = pd.to_datetime(data['t'], unit='s')
+
+            data.set_index('t', inplace=True)
+            data = data.resample('0.01S').mean()
+            data.reset_index(inplace=True)
+
+            velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
+
+            data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
+            num_samples = data_np.shape[0] - history_length - unroll_length
+            if num_samples <= 0:
+                print(f"Skipping file {file} due to insufficient data")
+                continue
+
+            X = np.zeros((num_samples, history_length, data_np.shape[1]))
+            Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
+
+            for i in range(num_samples):
+                X[i, :, :] =   data_np[i:i+history_length, :]
+                Y[i,:,:]   =   data_np[i+history_length:i+history_length+unroll_length,:data_np.shape[1]]
+
+            # Save to hdf5 with the same name as the csv file
+            with h5py.File(data_path + folder_name + file[:-4] + '.h5', 'w') as hf: 
+                inputs_data = hf.create_dataset('inputs', data=X)
+                inputs_data.dims[0].label = 'num_samples'
+                inputs_data.dims[1].label = 'history_length'
+                inputs_data.dims[2].label = 'features'
+
+                outputs_data = hf.create_dataset('outputs', data=Y)
+                outputs_data.dims[0].label = 'num_samples'
+                outputs_data.dims[1].label = 'unroll_length'
+                outputs_data.dims[2].label = 'features'
+
+                # flush and close the file
+                hf.flush()
+                hf.close()
+
+              
+        
+    # save the data
+    # Create the HDF5 file and datasets for inputs and outputs
+    # with h5py.File(data_path + folder_name + hdf5_file, 'w') as hf:
+    #     inputs_data = hf.create_dataset('inputs', data=X)
+    #     inputs_data.dims[0].label = 'num_samples'
+    #     inputs_data.dims[1].label = 'history_length'
+    #     inputs_data.dims[2].label = 'features'
+
+    #     outputs_data = hf.create_dataset('outputs', data=Y)
+    #     outputs_data.dims[0].label = 'num_samples'
+    #     outputs_data.dims[1].label = 'unroll_length'
+    #     outputs_data.dims[2].label = 'features'
+
+    #     # flush and close the file
+    #     hf.flush()
+    #     hf.close()
+        
 def hdf5_recursive(data_path, folder_name, hdf5_file, dataset):
 
     all_X = []
@@ -168,30 +244,52 @@ if __name__ == "__main__":
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + args.vehicle_type + "/" 
     
-    csv_to_hdf5(args, data_path)
+    # csv_to_hdf5(args, data_path)
 
-
-    X, Y = load_hdf5(data_path + 'train/', 'train.h5')
+    X, Y = load_hdf5(data_path + 'test/', 'transposed_parabola.h5')
     
     print("Shape of the input data: ",  X.shape)
     print("Shape of the output data: ", Y.shape)
 
 
-    ############## Data Analysis ##############
-
-    # Absolute difference between the last state of the input and the output
-    print("Absolute difference between the last state of the input and the output")
-    print(np.mean(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
-
-    # Varience 
-    print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
-
     # print("Min and Max values for each of the output features")
     # print("Minimum")
     # print(np.min(Y, axis=0))
 
-    # print("Maximum")
-    # print(np.max(Y, axis=0))
+    # Print max of the norm of the velocity
+    print("Max of the norm of the velocity")
+    print(np.max(np.linalg.norm(Y[:, 0, :3], axis=1)))
+
+    # Print mean of the norm of the velocity
+    print("Mean of the norm of the velocity")
+    print(np.mean(np.linalg.norm(Y[:, 0, :3], axis=1)))
+    
+    # print("Input data: ",  X[0, :, :])
+    # print("Output data: ", Y[0, :, :])
+
+
+    ############## Data Analysis ##############
+
+    # Absolute difference between the last state of the input and the output
+    # print("Absolute difference between the last state of the input and the output")
+    # print(np.mean(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
+
+    # # # Varience 
+    # print(np.var(np.abs(X[:, -1, :-4] - Y[:, 0, :-4]), axis=0))
+
+    # # MSE beteween the last state of the input and the output
+    # print("MSE")
+    # # Take square of the difference between the last state of the input and the output and sum over all the features and then take the mean
+    # loss = MSE()
+    
+    # # Convert to torch tensor
+    # X = torch.tensor(X)
+    # Y = torch.tensor(Y)
+
+    # print(loss(X[:, -1, :-4], Y[:, 0, :-4]))
+
+
+
 
 
     # # Print the MSE between the last state of the input and the output
