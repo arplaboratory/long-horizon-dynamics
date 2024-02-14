@@ -18,7 +18,9 @@ class GRU(nn.Module):
     else:
       decoder_input = encoder_sizes[0]
 
-    self.decoder = MLP(decoder_input, history_len, decoder_sizes, output_size, dropout)
+    self.velocity_decoder = MLP(decoder_input, history_len, decoder_sizes, 6, dropout)
+    self.attitude_decoder = MLP(decoder_input, history_len, decoder_sizes, 4, dropout)
+
     self.dropout = nn.Dropout(dropout)
     self.encoder_output = encoder_output
     self.num_layers = num_layers
@@ -42,7 +44,10 @@ class GRU(nn.Module):
       
     x_encoder = self.dropout(x_encoder)
 
-    x = self.decoder(x_encoder)
+    vel_pred = self.velocity_decoder(x_encoder)
+    att_pred = self.attitude_decoder(x_encoder)
+
+    x = torch.cat((vel_pred[:, :3], att_pred, vel_pred[:, 3:]), dim=1)
     
     return x
 

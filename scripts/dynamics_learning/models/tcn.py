@@ -22,15 +22,20 @@ class TCN(nn.Module):
     def __init__(self, input_size, encoder_sizes, history_len, decoder_sizes, output_size, kernel_size, dropout, **kwargs):
         super(TCN, self).__init__()
         self.encoder = TemporalConvNet(input_size, encoder_sizes, kernel_size=kernel_size, dropout=dropout)
-        self.decoder = MLP(encoder_sizes[-1] / history_len, history_len, decoder_sizes, output_size, dropout)
-        self.linear = nn.Linear(encoder_sizes[-1], output_size)
-    
+        self.velocity_decoder = MLP(encoder_sizes[-1] / history_len, history_len, decoder_sizes, 6, dropout)
+        self.attitude_decoder = MLP(encoder_sizes[-1] / history_len, history_len, decoder_sizes, 4, dropout)    
 
     def forward(self, x,  args=None):
         x = x.permute(0, 2, 1)  # Transpose input to (batch_size, num_features, history_length)
         x = self.encoder(x)
-        x = self.decoder(x[:, :, -1:]) # Take the output of the last time step
-        # x = self.linear(x[:, :, -1])
+        
+        # Split the output into velocity and attitude
+        vel_pred = self.velocity_decoder(x[:, :, -1:])
+        att_pred = self.attitude_decoder(x[:, :, -1:])
+
+        # Stack the outputs as linear velocity, quaternion, angular velocity
+        x = torch.cat((vel_pred[:, :3], att_pred, vel_pred[:, 3:]), dim=1)
+
         return x
     
 class TemporalConvNet(nn.Module):

@@ -18,7 +18,8 @@ def get_model(args, input_size, output_size):
     else:
         # Print the number of model parameters in millions for both encoder and decoder
         print("Encoder parameters: ", sum(p.numel() for p in model[args.model_type].encoder.parameters())/1000000, "M")
-        print("Decoder parameters: ", sum(p.numel() for p in model[args.model_type].decoder.parameters())/1000000, "M")
+        print("Velocity Decoder parameters: ", sum(p.numel() for p in model[args.model_type].velocity_decoder.parameters())/1000000, "M")
+        print("Attitude Decoder parameters: ", sum(p.numel() for p in model[args.model_type].attitude_decoder.parameters())/1000000, "M")
 
 
     return model[args.model_type]
