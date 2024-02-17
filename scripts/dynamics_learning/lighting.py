@@ -71,8 +71,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.val_full_gt = []
 
         self.test_predictions = []
-        self.compounding_error = []
         self.mean_abs_error_per_sample = []
+        self.copounding_error_per_sample = []
 
     def forward(self, x, init_memory):
 
@@ -206,7 +206,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.log("MSE", batch_loss, on_step=True, prog_bar=True, logger=True)
 
         # Save mean compounding error per batch
-        self.compounding_error.append(compounding_error)
+        self.copounding_error_per_sample.append(compounding_error)
 
         return batch_loss
             
@@ -246,7 +246,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
     def on_test_epoch_end(self) -> None:
 
         # Print list of compounding errors
-        print("Mean compounding error per sample: ", self.mean_abs_error_per_sample[0])
+        # print("Mean compounding error per sample: ", self.mean_abs_error_per_sample[0])
+        print(self.copounding_error_per_sample)
+        print(len(self.copounding_error_per_sample[0]), '--------------')
+
 
 
     def plot_predictions(self, val_predictions, val_full_gt_np=None):
