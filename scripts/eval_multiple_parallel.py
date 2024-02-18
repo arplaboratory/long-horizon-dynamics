@@ -96,7 +96,7 @@ if __name__ == "__main__":
     plotting_data_path = experiment_path + "plotting_data/"
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
-                        os.path.join(experiment_path, "plots", "testset")])
+                        os.path.join(experiment_path, "plots", "testset"), plotting_data_path])
 
     print(experiment_path)
     print("Testing Dynamics model:", model_path)
