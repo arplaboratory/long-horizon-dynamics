@@ -68,5 +68,7 @@ def load_dataset(mode, data_path, hdf5_file, args, num_workers, pin_memory):
     print('... Loaded', dataset.data_len, 'points')
     print('|State|   =', dataset.state_len)
     print('|History| =', dataset.history_length)
+    print('|Unroll|  =', dataset.unroll_length)
+    print('|Batch|   =', batch_size)
 
     return dataset, loader

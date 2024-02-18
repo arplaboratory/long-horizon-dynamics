@@ -21,11 +21,12 @@ warnings.filterwarnings('ignore')
 def main(args, hdf5_files, model_path, plotting_data_path, model_name):
 
     # WandB Logging
-    wandb_logger = pytorch_lightning.loggers.WandbLogger(name="wandb_logger", project="dynamics_learning", save_dir=experiment_path) 
+    wandb_logger = pytorch_lightning.loggers.WandbLogger(name="wandb_logger", project="dynamics_learning_evaluation", save_dir=experiment_path) 
 
     
     # Load datasets from hdf5 files and return a dictionary of dataloaders
     test_dataloaders = [load_dataset("test", data_path, hdf5_file, args, 0, False)[1] for hdf5_file in hdf5_files]
+
 
     dataloaders = {}
     for hdf5_file in hdf5_files:

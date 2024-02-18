@@ -167,8 +167,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
             abs_error[i+1] = torch.mean(torch.abs(y_hat - velocity_gt), dim=0)
 
-            loss = self.loss_fn(y_hat, velocity_gt)
-            batch_loss += loss / self.args.unroll_length
+            loss = self.loss_fn(y_hat, velocity_gt, mean=False)
+            batch_loss += loss.mean(0) / self.args.unroll_length
 
             # Mean absolute error
 
@@ -205,8 +205,11 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         batch_loss, compounding_error = self.eval_trajectory(test_batch)
         self.log("MSE", batch_loss, on_step=True, prog_bar=True, logger=True)
 
-        # Save mean compounding error per batch
-        self.copounding_error_per_sample.append(compounding_error)
+        # compounding_error is of shape (unroll_length, batch_size)
+        # At the end of evvery step concatenate the compounding error on the batch axis
+
+        
+        self.copounding_error_per_sample.append(np.array(compounding_error))
 
         return batch_loss
             
@@ -245,34 +248,48 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             
     def on_test_epoch_end(self) -> None:
 
-        # Print list of compounding errors
-        # print("Mean compounding error per sample: ", self.mean_abs_error_per_sample[0])
-        print(self.copounding_error_per_sample)
-        print(len(self.copounding_error_per_sample[0]), '--------------')
+        # self.compounding_error_per_sample concatenates the compounding error on the batch axis
+        recursive_predictions_per_sample = np.concatenate(self.copounding_error_per_sample, axis=1)
+
+        # recursive predictions per sample is of shape (unroll_length, batch_size). Flip the axis to get (batch_size, unroll_length)
+        recursive_predictions_per_sample = np.transpose(recursive_predictions_per_sample, (1, 0))
+
+        # Save recursive_predictions_per_sample as numpy array
+        np.save(self.experiment_path + "plotting_data/" + self.args.model_type + ".npy", recursive_predictions_per_sample)
+
+        # Get mean and variance of compound error per sample
+        mean_copounding_error_per_sample = np.mean(recursive_predictions_per_sample, axis=0)
+        variance_copounding_error_per_sample = np.var(recursive_predictions_per_sample, axis=0)
+
+        # plot the evaluations
+        self.plot_evaluations(mean_copounding_error_per_sample, variance_copounding_error_per_sample)
 
 
-
-    def plot_predictions(self, val_predictions, val_full_gt_np=None):
         
-        if val_full_gt_np is not None:
-            Y_gt = val_full_gt_np
-        else: 
-            Y_gt = self.val_gt
+        
+    def plot_evaluations(self, mean_copounding_error_per_sample, variance_copounding_error_per_sample):
+        
 
-        # Plot predictions and ground truth
-        for i in range(Y_gt.shape[1]):
-            fig = plt.figure(figsize=(8, 6), dpi=400)
-            plt.plot(val_predictions[:, i], label="Ground Truth", color=colors[1], linewidth=4.5)
-            plt.plot(Y_gt[:, i], label="Predicted", color=colors[2], linewidth=4.5,  linestyle=line_styles[1])
-            
-            plt.grid(True)  # Add gridlines
-            plt.tight_layout(pad=1.5)
-            plt.legend()
-            plt.xlabel("Time (s)")
-            plt.ylabel(OUTPUT_FEATURES["label"][i])
-            plt.savefig(self.experiment_path + "plots/testset/testset_" + OUTPUT_FEATURES["discrete"][i] + ".png")
-            plt.close()
+        # Plot the data
+        fig, ax = plt.subplots(figsize=(16, 10), dpi=100)
+        ax.plot(mean_copounding_error_per_sample, color='skyblue', linewidth=2.5, label='Mean Copounding Error')
+        ax.fill_between(np.arange(len(mean_copounding_error_per_sample)), mean_copounding_error_per_sample - variance_copounding_error_per_sample, 
+                        mean_copounding_error_per_sample + variance_copounding_error_per_sample, alpha=0.5, color='skyblue', 
+                        label='Variance Copounding Error')
+    
+        # Set axis limits
+        # ax.set_xlim([0, 20])
+        # ax.set_ylim([0, 10])
 
-        # release memory
-        self.val_predictions = []
-        torch.cuda.empty_cache()
+        ax.set_xlabel("No. of Recursive Predictions")
+        ax.set_ylabel("MSE")
+        ax.set_title("MSE Analysis over Recursive Predictions")
+        ax.legend()
+
+        # Save the plot
+        plt.tight_layout(pad=1.5)
+        plt.savefig(self.experiment_path + "plots/trajectory/mse_analysis.pdf")
+        plt.close()
+
+
+   

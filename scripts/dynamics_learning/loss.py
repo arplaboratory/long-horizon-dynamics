@@ -16,9 +16,11 @@ class MSE(nn.Module):
     def __init__(self):
         super(MSE, self).__init__()
 
-    def forward(self, pred, target):
+    def forward(self, pred, target, mean=True):
         
         loss = (pred - target)**2
         loss = loss.sum(dim=1)
-        loss = loss.mean(0)
+
+        if mean:
+            loss = loss.mean(0)
         return loss
