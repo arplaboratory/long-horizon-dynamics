@@ -50,7 +50,7 @@ def parse_args():
     parser.add_argument('--sampling_frequency',    type=int,      default=100)
     parser.add_argument('--augmentation',          type=bool,     default=False)
     parser.add_argument('--std_percentage',        type=float,    default=0.1)
-    parser.add_argument('--unroll_length',         type=int,      default=10)
+    parser.add_argument('--unroll_length',         type=int,      default=5)
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--attitude',              type=str,      default='quaternion')
     parser.add_argument('--delta',                 type=bool,     default=True)
@@ -60,6 +60,14 @@ def parse_args():
     parser.add_argument('--d_model',               type=int,      default=256)
     parser.add_argument('--num_heads',             type=int,      default=4)
     parser.add_argument('--ffn_hidden',            type=int,      default=512)
+
+    # Ablate input type
+    parser.add_argument('--predictor_type',          type=str,    default='linear_velocity') # Linear velocity, angular velocity, attitude
+    parser.add_argument('--input_type',              type=str,    default='vw')               
+    
+    # v: linear velocity, w: angular velocity, a: attitude, 
+    # vw: linear and angular velocity, va: linear velocity and attitude, wa: angular velocity and attitude, 
+    # vwa: linear velocity, angular velocity and attitude
 
     args = parser.parse_args()
     for arg in vars(args):

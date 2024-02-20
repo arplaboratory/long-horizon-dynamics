@@ -42,16 +42,51 @@ def extract_data(data, dataset_name):
 
     return velocity_data, attitude_data, angular_velocity_data, control_data
 
+def get_input_and_output(velocity_data, attitude_data, angular_velocity_data, control_data, input_type, predictor_type):
+
+    # Base on input type, select the input data
+    if input_type == 'v':
+        input_data = np.hstack((velocity_data, control_data))
+    elif input_type == 'w':
+        input_data =  np.hstack((angular_velocity_data, control_data))
+    elif input_type == 'a':
+        input_data = np.hstack((attitude_data, control_data))
+    elif input_type == 'vw':
+        input_data = np.hstack((velocity_data, angular_velocity_data, control_data))
+    elif input_type == 'va':
+        input_data = np.hstack((velocity_data, attitude_data, control_data))
+    elif input_type == 'wa':
+        input_data = np.hstack((angular_velocity_data, attitude_data, control_data))
+    elif input_type == 'vwa':
+        input_data = np.hstack((velocity_data, angular_velocity_data, attitude_data, control_data))
+    else:
+        raise ValueError(f"Invalid input type: {input_type}")
+    
+    # Base on predictor type, select the output data
+    if predictor_type == 'linear_velocity':
+        output_data = np.hstack((velocity_data, control_data))
+
+    elif predictor_type == 'angular_velocity':
+        output_data = np.hstack((angular_velocity_data, control_data))
+
+    elif predictor_type == 'attitude':
+        output_data = np.hstack((attitude_data, control_data))
+
+    else:
+        raise ValueError(f"Invalid predictor type: {predictor_type}")
+    
+    return input_data, output_data
+
 
 def csv_to_hdf5(args, data_path):
 
-    # hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
-    # hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
-    # hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
-    hdf5_trajectories(data_path, 'test/', args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
+    hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency, args.input_type, args.predictor_type)
+    hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency, args.input_type, args.predictor_type)
+    hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency, args.input_type, args.predictor_type)
+    # hdf5_trajectories(data_path, 'test/', args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
     # hdf5_recursive(data_path, 'test/',  'test_eval.h5', args.vehicle_type)
 
-def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, unroll_length, sampling_frequency):
+def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, unroll_length, sampling_frequency, input_type, predictor_type):
 
     all_X = []
     all_Y = []
@@ -63,34 +98,55 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, u
             data = pd.read_csv(csv_file_path)
 
             # Modify time to start from 0
-            data['t'] = data['t'] - data['t'].values[0]
+            # data['t'] = data['t'] - data['t'].values[0]
 
-            data['t'] = pd.to_datetime(data['t'], unit='s')
+            # data['t'] = pd.to_datetime(data['t'], unit='s')
 
-            data.set_index('t', inplace=True)
-            data = data.resample('0.01S').mean()
-            data.reset_index(inplace=True)
+            # data.set_index('t', inplace=True)
+            # data = data.resample('0.01S').mean()
+            # data.reset_index(inplace=True)
 
             velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
+            
+            input_data, output_data = get_input_and_output(velocity_data, attitude_data, angular_velocity_data, control_data, input_type, predictor_type)
 
-            data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
-            num_samples = data_np.shape[0] - history_length - unroll_length
+            # INput should be a history of inputs and output should be the next unroll_length outputs
+            num_samples = input_data.shape[0] - history_length - unroll_length
             if num_samples <= 0:
                 print(f"Skipping file {file} due to insufficient data")
                 continue
 
-            X = np.zeros((num_samples, history_length, data_np.shape[1]))
-            Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
+            X = np.zeros((num_samples, history_length, input_data.shape[1]))
+            Y = np.zeros((num_samples, unroll_length, output_data.shape[1]))
 
             for i in range(num_samples):
-                X[i, :, :] =   data_np[i:i+history_length, :]
-                Y[i,:,:]   =   data_np[i+history_length:i+history_length+unroll_length,:data_np.shape[1]]
+                X[i, :, :] =   input_data[i:i+history_length, :]
+                Y[i,:,:]   =   output_data[i+history_length:i+history_length+unroll_length,:]
+
 
             all_X.append(X)
             all_Y.append(Y)
 
     X = np.concatenate(all_X, axis=0)
-    Y = np.concatenate(all_Y, axis=0)    
+    Y = np.concatenate(all_Y, axis=0)
+
+    #         num_samples = data_np.shape[0] - history_length - unroll_length
+    #         if num_samples <= 0:
+    #             print(f"Skipping file {file} due to insufficient data")
+    #             continue
+
+    #         X = np.zeros((num_samples, history_length, data_np.shape[1]))
+    #         Y = np.zeros((num_samples, unroll_length, data_np.shape[1]))
+
+    #         for i in range(num_samples):
+    #             X[i, :, :] =   data_np[i:i+history_length, :]
+    #             Y[i,:,:]   =   data_np[i+history_length:i+history_length+unroll_length,:data_np.shape[1]]
+
+    #         all_X.append(X)
+    #         all_Y.append(Y)
+
+    # X = np.concatenate(all_X, axis=0)
+    # Y = np.concatenate(all_Y, axis=0)    
         
     # save the data
     # Create the HDF5 file and datasets for inputs and outputs
@@ -160,72 +216,6 @@ def hdf5_trajectories(data_path, folder_name, dataset, attitude, history_length,
                 hf.close()
 
               
-        
-    # save the data
-    # Create the HDF5 file and datasets for inputs and outputs
-    # with h5py.File(data_path + folder_name + hdf5_file, 'w') as hf:
-    #     inputs_data = hf.create_dataset('inputs', data=X)
-    #     inputs_data.dims[0].label = 'num_samples'
-    #     inputs_data.dims[1].label = 'history_length'
-    #     inputs_data.dims[2].label = 'features'
-
-    #     outputs_data = hf.create_dataset('outputs', data=Y)
-    #     outputs_data.dims[0].label = 'num_samples'
-    #     outputs_data.dims[1].label = 'unroll_length'
-    #     outputs_data.dims[2].label = 'features'
-
-    #     # flush and close the file
-    #     hf.flush()
-    #     hf.close()
-        
-def hdf5_recursive(data_path, folder_name, hdf5_file, dataset):
-
-    all_X = []
-    all_Y = []
-
-    # load the data
-    for file in tqdm(os.listdir(data_path + folder_name)):
-        if file.endswith(".csv"):
-            csv_file_path = os.path.join(data_path + folder_name, file)
-            data = pd.read_csv(csv_file_path)
-
-            velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
-
-            data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
-
-            num_samples = data_np.shape[0] - 1
-            # Input features at the current time step
-            X = np.zeros((num_samples, data_np.shape[1]))
-
-            # Output rotation at the next time step excluding the control inputs
-            Y = np.zeros((num_samples, data_np.shape[1]))
-
-            for i in range(num_samples):
-                X[i,:] = data_np[i,:]
-                Y[i,:] = data_np[i+1, :data_np.shape[1]]
-
-            all_X.append(X)
-            all_Y.append(Y)
-
-    X = np.concatenate(all_X, axis=0)
-    Y = np.concatenate(all_Y, axis=0)
-        
-    # save the data
-    # Create the HDF5 file and datasets for inputs and outputs
-    with h5py.File(data_path + folder_name + hdf5_file, 'w') as hf:
-        inputs_data = hf.create_dataset('inputs', data=X)
-        inputs_data.dims[0].label = 'num_samples'
-        inputs_data.dims[1].label = 'features'
-
-        outputs_data = hf.create_dataset('outputs', data=Y)
-        outputs_data.dims[0].label = 'num_samples'
-        outputs_data.dims[1].label = 'features'
-
-        # flush and close the file
-        hf.flush()
-        hf.close()
-        
-    return X, Y
 
                 
 # load hdf5
@@ -244,9 +234,9 @@ if __name__ == "__main__":
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + args.vehicle_type + "/" 
     
-    # csv_to_hdf5(args, data_path)
+    csv_to_hdf5(args, data_path)
 
-    X, Y = load_hdf5(data_path + 'test/', 'transposed_parabola.h5')
+    X, Y = load_hdf5(data_path + 'test/', 'test.h5')
     
     print("Shape of the input data: ",  X.shape)
     print("Shape of the output data: ", Y.shape)

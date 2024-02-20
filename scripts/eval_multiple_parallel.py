@@ -35,13 +35,16 @@ def main(args, hdf5_files, model_path, plotting_data_path, model_name):
 
         dataloaders[file_name] = dataloader
 
+    input_size = dataset.X_shape[2]
+    output_size = dataset.Y_shape[2] - 4
+
     # Load model
     model = DynamicsLearning(
         args,
         resources_path,
         experiment_path,
-        input_size=14,
-        output_size=10,
+        input_size=input_size,
+        output_size=output_size,
         valid_data=None,
         max_iterations=1,
     )
