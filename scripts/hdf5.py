@@ -62,18 +62,7 @@ def get_input_and_output(velocity_data, attitude_data, angular_velocity_data, co
     else:
         raise ValueError(f"Invalid input type: {input_type}")
     
-    # Base on predictor type, select the output data
-    if predictor_type == 'linear_velocity':
-        output_data = np.hstack((velocity_data, control_data))
-
-    elif predictor_type == 'angular_velocity':
-        output_data = np.hstack((angular_velocity_data, control_data))
-
-    elif predictor_type == 'attitude':
-        output_data = np.hstack((attitude_data, control_data))
-
-    else:
-        raise ValueError(f"Invalid predictor type: {predictor_type}")
+    output_data = np.hstack((velocity_data, angular_velocity_data, attitude_data, control_data))
     
     return input_data, output_data
 

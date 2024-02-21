@@ -57,7 +57,12 @@ def main(args):
     )
 
     input_size = train_dataset.X_shape[2]
-    output_size = train_dataset.Y_shape[2] - 4
+    
+    if args.predictor_type == "linear_velocity" or args.predictor_type == "angular_velocity":
+        output_size = 3
+
+    elif args.predictor_type == "attitude":
+        output_size = 4
 
     val_gt = valid_dataset.Y
     

@@ -150,34 +150,46 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         for i in range(self.args.unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
 
-            # Normalize the quaternion
-            if self.args.predictor_type == "attitude":
-                y_hat = y_hat.clone() / torch.norm(y_hat.clone(), dim=1, keepdim=True)
+            # # Normalize the quaternion
+            # if self.args.predictor_type == "attitude":
+            #     y_hat = y_hat.clone() / torch.norm(y_hat.clone(), dim=1, keepdim=True)
             
-            loss = self.loss_fn(y_hat, y[:, i, :-4])
-            batch_loss += loss / self.args.unroll_length
+            # loss = self.loss_fn(y_hat, y[:, i, :-4])
+            # batch_loss += loss / self.args.unroll_length
 
+            if self.args.predictor_type == "linear_velocity":
+                loss = self.loss_fn(y_hat, y[:, i, :3])
+                batch_loss += loss / self.args.unroll_length
+            
+            elif self.args.predictor_type == "angular_velocity":
+                loss = self.loss_fn(y_hat, y[:, i, 3:6])
+                batch_loss += loss / self.args.unroll_length
+            
+            else:
+                y_hat = y_hat.clone() / torch.norm(y_hat.clone(), dim=1, keepdim=True)
+                loss = self.loss_fn(y_hat, y[:, i, 6:10])
+                batch_loss += loss / self.args.unroll_length
 
             if i < self.args.unroll_length - 1:
                 
                 u_gt = y[:, i, -4:]
+                v_gt = y[:, i, :3]
+                w_gt = y[:, i, 3:6]
+                a_gt = y[:, i, 6:10]
 
 
                 if self.args.predictor_type == "linear_velocity":
+                    
                     if self.args.input_type == "v":
                         x_unroll_curr = torch.cat((y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "vw":
-                        w_gt = x_curr[:, -1, 3:6]
                         x_unroll_curr = torch.cat((y_hat, w_gt, u_gt), dim=1)
 
                     elif self.args.input_type == "va":
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((y_hat, a_gt, u_gt), dim=1)
 
                     else: 
-                        w_gt = x_curr[:, -1, 3:6] 
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((y_hat, w_gt, a_gt, u_gt), dim=1)
 
                 if self.args.predictor_type == "angular_velocity":
@@ -185,16 +197,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         x_unroll_curr = torch.cat((y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "vw":
-                        v_gt = x_curr[:, -1, :3]
                         x_unroll_curr = torch.cat((v_gt, y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "wa":
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((y_hat, a_gt, u_gt), dim=1)
 
                     else: 
-                        v_gt = x_curr[:, -1, :3]
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((v_gt, y_hat, a_gt, u_gt), dim=1)
 
                 if self.args.predictor_type == "attitude":
@@ -202,16 +210,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         x_unroll_curr = torch.cat((y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "va":
-                        v_gt = x_curr[:, -1, :3]
                         x_unroll_curr = torch.cat((v_gt, y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "wa":
-                        w_gt = x_curr[:, -1, 3:6]
                         x_unroll_curr = torch.cat((w_gt, y_hat, u_gt), dim=1)
 
                     else: 
-                        v_gt = x_curr[:, -1, :3]
-                        w_gt = x_curr[:, -1, 3:6]
                         x_unroll_curr = torch.cat((v_gt, w_gt, y_hat, u_gt), dim=1)
               
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
@@ -235,14 +239,18 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
 
             
-            if self.args.predictor_type == "linear_velocity" or self.args.predictor_type == "angular_velocity":
-                loss = self.loss_fn(y_hat, y[:, i, :-4])
+            if self.args.predictor_type == "linear_velocity":
+                loss = self.loss_fn(y_hat, y[:, i, :3])
+                batch_loss += loss / self.args.unroll_length
+            
+            elif self.args.predictor_type == "angular_velocity":
+                loss = self.loss_fn(y_hat, y[:, i, 3:6])
                 batch_loss += loss / self.args.unroll_length
 
             else: 
                 y_hat = y_hat.clone() / torch.norm(y_hat.clone(), dim=1, keepdim=True)
 
-                attitude_gt = y[:, i, :-4]
+                attitude_gt = y[:, i, 6:10]
 
                 q_error = quaternion_difference(y_hat, attitude_gt)
                 q_error_log = quaternion_log(q_error)
@@ -256,6 +264,9 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             if i < self.args.unroll_length - 1:
                 
                 u_gt = y[:, i, -4:]
+                v_gt = y[:, i, :3]
+                w_gt = y[:, i, 3:6]
+                a_gt = y[:, i, 6:10]
 
 
                 if self.args.predictor_type == "linear_velocity":
@@ -263,16 +274,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         x_unroll_curr = torch.cat((y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "vw":
-                        w_gt = x_curr[:, -1, 3:6]
                         x_unroll_curr = torch.cat((y_hat, w_gt, u_gt), dim=1)
 
                     elif self.args.input_type == "va":
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((y_hat, a_gt, u_gt), dim=1)
 
                     else: 
-                        w_gt = x_curr[:, -1, 3:6] 
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((y_hat, w_gt, a_gt, u_gt), dim=1)
 
                 if self.args.predictor_type == "angular_velocity":
@@ -280,16 +287,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         x_unroll_curr = torch.cat((y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "vw":
-                        v_gt = x_curr[:, -1, :3]
                         x_unroll_curr = torch.cat((v_gt, y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "wa":
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((y_hat, a_gt, u_gt), dim=1)
 
                     else: 
-                        v_gt = x_curr[:, -1, :3]
-                        a_gt = x_curr[:, -1, 6:10]
                         x_unroll_curr = torch.cat((v_gt, y_hat, a_gt, u_gt), dim=1)
 
                 if self.args.predictor_type == "attitude":
@@ -297,16 +300,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         x_unroll_curr = torch.cat((y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "va":
-                        v_gt = x_curr[:, -1, :3]
                         x_unroll_curr = torch.cat((v_gt, y_hat, u_gt), dim=1)
 
                     elif self.args.input_type == "wa":
-                        w_gt = x_curr[:, -1, 3:6]
                         x_unroll_curr = torch.cat((w_gt, y_hat, u_gt), dim=1)
 
                     else: 
-                        v_gt = x_curr[:, -1, :3]
-                        w_gt = x_curr[:, -1, 3:6]
                         x_unroll_curr = torch.cat((v_gt, w_gt, y_hat, u_gt), dim=1)
               
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)

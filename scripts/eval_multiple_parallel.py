@@ -36,7 +36,11 @@ def main(args, hdf5_files, model_path, plotting_data_path, model_name):
         dataloaders[file_name] = dataloader
 
     input_size = dataset.X_shape[2]
-    output_size = dataset.Y_shape[2] - 4
+    if args.predictor_type == "linear_velocity" or args.predictor_type == "angular_velocity":
+        output_size = 3
+
+    elif args.predictor_type == "attitude":
+        output_size = 4
 
     # Load model
     model = DynamicsLearning(
