@@ -84,7 +84,8 @@ def main(args):
         default_root_dir=experiment_path,
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
-        num_sanity_val_steps=0
+        num_sanity_val_steps=0,
+        gradient_clip_val=args.gradient_clip_val,
     )
     if trainer.is_global_zero:
         wandb_logger.experiment.config.update(vars(args))

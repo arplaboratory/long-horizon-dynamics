@@ -45,10 +45,10 @@ def extract_data(data, dataset_name):
 
 def csv_to_hdf5(args, data_path):
 
-    # hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
-    # hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
-    # hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
-    hdf5_trajectories(data_path, 'test/', args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
+    hdf5(data_path, 'train/', 'train.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    hdf5(data_path, 'valid/', 'valid.h5',  args.vehicle_type,  args.attitude,  args.history_length, args.unroll_length, args.sampling_frequency)
+    hdf5(data_path, 'test/',  'test.h5',   args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
+    # hdf5_trajectories(data_path, 'test/', args.vehicle_type,  args.attitude,  args.history_length, 60, args.sampling_frequency)
     # hdf5_recursive(data_path, 'test/',  'test_eval.h5', args.vehicle_type)
 
 def hdf5(data_path, folder_name, hdf5_file, dataset, attitude, history_length, unroll_length, sampling_frequency):
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     resources_path = folder_path + "resources/"
     data_path = resources_path + "data/" + args.vehicle_type + "/" 
     
-    # csv_to_hdf5(args, data_path)
+    csv_to_hdf5(args, data_path)
 
     X, Y = load_hdf5(data_path + 'test/', 'transposed_parabola.h5')
     

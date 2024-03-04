@@ -10,7 +10,8 @@ def get_model(args, input_size, output_size):
         'gru':         GRU(input_size,  args.encoder_sizes,  args.num_layers,      args.history_length, args.decoder_sizes, output_size, args.dropout, args.encoder_output),
         'tcn':         TCN(input_size,  args.encoder_sizes,  args.history_length,  args.decoder_sizes,  output_size,   args.kernel_size, args.dropout),
         'transformer': Transformer(input_size, args.d_model, args.num_heads, args.history_length, args.ffn_hidden,     args.num_layers, args.dropout, 
-                                   args.decoder_sizes, output_size, args.encoder_output, args.causal_masking)
+                                   args.decoder_sizes, output_size, args.encoder_output, args.causal_masking,
+                                   pos_encoder_type=args.pos_encoder_type, decoder_type=args.decoder_type)
     }
 
     # If MLP print model parameters in millions using only .model in 
@@ -23,6 +24,3 @@ def get_model(args, input_size, output_size):
 
 
     return model[args.model_type]
-
-
-    
