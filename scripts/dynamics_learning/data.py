@@ -6,8 +6,6 @@ import h5py
 
 class DynamicsDataset(Dataset):
     def __init__(self, data_path, hdf5_file, args):
-
-        self.normalize = args.normalize
         self.X, self.Y = self.load_data(data_path, hdf5_file)        
         self.history_length = args.history_length
         self.unroll_length = args.unroll_length
@@ -32,7 +30,6 @@ class DynamicsDataset(Dataset):
         return self.X_shape[0]
 
     def __getitem__(self, idx):
-           
 
         x = self.X[idx, :, :]
         y = self.Y[idx, :, :]
@@ -54,5 +51,6 @@ def load_dataset(mode, data_path, hdf5_file, args, num_workers, pin_memory):
     print('... Loaded', dataset.data_len, 'points')
     print('|State|   =', dataset.state_len)
     print('|History| =', dataset.history_length)
+    print('|Unroll|  =', dataset.unroll_length)
 
     return dataset, loader

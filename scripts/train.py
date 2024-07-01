@@ -12,14 +12,6 @@ import os
 
 warnings.filterwarnings('ignore')
 
-#----------------------------------------------------------------------------
-INPUT_FEATURES = {
-    "euler": 13,
-    "quaternion": 14,
-    "rotation": 19,
-}
-#----------------------------------------------------------------------------
-
 def main(args):
 
     # WandB Logging

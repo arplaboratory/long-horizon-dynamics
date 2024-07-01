@@ -5,7 +5,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Arguments for dynamics learning')
 
     # architecture
-    parser.add_argument('-N', '--model_type',      type=str,       default='gru')
+    parser.add_argument('-N', '--model_type',      type=str,       default='gru')               # mlp, gru, lstm, tcn
     parser.add_argument('--encoder_sizes',         type=list,      default='512,256,256')
     parser.add_argument('--decoder_sizes',         type=list,      default='1024,512,512')
     parser.add_argument('--encoder_output',        type=str,       default='output')
@@ -17,11 +17,12 @@ def parse_args():
     parser.add_argument('-r', '--run_id',          type=int,      default=1)
     parser.add_argument('-d', '--gpu_id',          type=int,      default=0)
     parser.add_argument('--num_devices',           type=int,      default=1)
-    parser.add_argument('-e', '--epochs',          type=int,      default=50000)
+    parser.add_argument('-e', '--epochs',          type=int,      default=10000)
     parser.add_argument('-b', '--batch_size',      type=int,      default=128)
     parser.add_argument('-s', '--shuffle',         type=bool,     default=False)
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('--seed',                  type=int,      default=10)
+    parser.add_argument('--predictor_type',        type=str,      default='velocity')
 
     # Optimizer
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
@@ -35,10 +36,6 @@ def parse_args():
     parser.add_argument('--adam_beta2',            type=float,    default=0.999)
     parser.add_argument('--adam_eps',              type=float,    default=1e-08)
 
-    # Physics-inspired loss 
-    parser.add_argument('--physics_inspired',      type=bool,     default=False)
-    parser.add_argument('--lamda',                 type=float,    default=0.1)
-
     # Logger 
     parser.add_argument('-p', '--plot',            type=bool,     default=False)
     parser.add_argument('--save_freq',             type=int,      default=50)
@@ -46,20 +43,11 @@ def parse_args():
     parser.add_argument('--val_freq',              type=int,      default=1)
     
     # Data
-    parser.add_argument('--normalize',             type=bool,     default=False)
     parser.add_argument('--sampling_frequency',    type=int,      default=100)
-    parser.add_argument('--augmentation',          type=bool,     default=False)
-    parser.add_argument('--std_percentage',        type=float,    default=0.1)
     parser.add_argument('--unroll_length',         type=int,      default=10)
     parser.add_argument('--history_length',        type=int,      default=20)
-    parser.add_argument('--attitude',              type=str,      default='quaternion')
     parser.add_argument('--delta',                 type=bool,     default=True)
-    parser.add_argument('--vehicle_type',          type=str,      default='quadrotor')
-    
-    # Transformer Model
-    parser.add_argument('--d_model',               type=int,      default=256)
-    parser.add_argument('--num_heads',             type=int,      default=4)
-    parser.add_argument('--ffn_hidden',            type=int,      default=512)
+    parser.add_argument('--dataset',               type=str,      default='pi_tcn')         # pi_tcn, neurobem
 
     args = parser.parse_args()
     for arg in vars(args):
