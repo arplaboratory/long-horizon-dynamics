@@ -28,7 +28,9 @@ git clone https://github.com/arplaboratory/FW-DYNAMICS_LEARNING.git
 cd DYNAMICS_LEARNING
 mkdir resources
 cd resources
-wget *add link to dataset*
+wget https://drive.google.com/file/d/1BB-r63qgiqB5uJ5xVbTcfR-6j9rXCFCA/view?usp=sharing
+unzip data.zip
+rm data.zip
 ```
 We first pre-process the dataset and store it in an hdf5 file - 
 
