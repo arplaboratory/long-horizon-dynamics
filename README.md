@@ -21,3 +21,30 @@ conda activate dynamics_learning
 ## Dependencies
 
 ```pip install -r requirements.txt```
+
+## Data Preparation
+```
+git clone https://github.com/arplaboratory/FW-DYNAMICS_LEARNING.git
+cd DYNAMICS_LEARNING
+mkdir resources
+cd resources
+wget *add link to dataset*
+```
+We first pre-process the dataset and store it in an hdf5 file - 
+
+```
+cd ../scripts
+python hdf5.py --dataset pi_tcn --history_length 20 --unroll_length 10
+```
+
+## Training 
+```
+python train.py --batch_size 1024 --model_type tcn --history_length 20 --unroll_length 10 --predictor_type velocity
+```
+
+## Evaluation 
+```
+python eval.py
+```
+
+
