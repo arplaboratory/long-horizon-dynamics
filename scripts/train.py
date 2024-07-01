@@ -54,9 +54,7 @@ def main(args):
         output_size = 6
     elif args.predictor_type == "attitude":
         output_size = 4
-    
-    val_gt = valid_dataset.Y
-    
+       
     # Load model
     print('Loading model ...')
 
@@ -91,12 +89,12 @@ if __name__ == "__main__":
     args = parse_args()
 
     # Asser model type
-    assert args.model_type in ["mlp", "lstm", "gru", "tcn", "transformer"], "Model type must be one of [mlp, lstm, gru, tcn, transformer]"
+    assert args.model_type in ["mlp", "lstm", "gru", "tcn"], "Model type must be one of [mlp, lstm, gru, tcn]"
 
     # Seed
     pytorch_lightning.seed_everything(args.seed)
 
-    # Assert vehicle type
+    # Assert dataset 
     assert args.dataset in ["pi_tcn", "neurobem"], "Vehicle type must be one of [fixed_wing, pi_tcn, neurobem]"
 
     if args.dataset == "pi_tcn":

@@ -1,100 +1,95 @@
+import torch 
 from torch.utils.data import DataLoader
 import warnings
 from dynamics_learning.utils import check_folder_paths
-from config import parse_args, save_args, load_args
+from config import parse_args, save_args
 from dynamics_learning.data import load_dataset
 import pytorch_lightning
 from dynamics_learning.lighting import DynamicsLearning
+from config import load_args
 
 import sys
+import time
 import os
 import glob
 
 warnings.filterwarnings('ignore')
 
-#----------------------------------------------------------------------------
-INPUT_FEATURES = {
-    "euler": 13,
-    "quaternion": 14,
-    "rotation": 19,
-}
+
 #----------------------------------------------------------------------------
 
-def main(args):
+def main(args, hdf5_files, model_path):
 
     # WandB Logging
     wandb_logger = pytorch_lightning.loggers.WandbLogger(name="wandb_logger", project="dynamics_learning", save_dir=experiment_path) 
-
-    # Create datasets and dataloaders
-    test_dataset, test_loader = load_dataset(
-        "validation",
-        data_path + "test/",
-        "test.h5",
-        args,
-        num_workers=16,
-        pin_memory=True,
-    )
-
-    input_size = test_dataset.X_shape[2]
-    output_size = 4
-
-    test_gt = test_dataset.Y
     
-    # Load model
-    print('Loading model ...')
+    # Load datasets from hdf5 files and return a dictionary of dataloaders
+    test_dataloaders = [load_dataset("test", data_path, hdf5_file, args, 0, False)[1] for hdf5_file in hdf5_files]
 
-    # Initialize the model
+    dataloaders = {}
+    for hdf5_file in hdf5_files:
+        _, dataloader = load_dataset("test", data_path, hdf5_file, args, 0, False)
+        # GEt name of the file
+        file_name = hdf5_file.split("/")[-1].split(".")[0]
+
+        dataloaders[file_name] = dataloader
+
+    if args.predictor_type == "velocity":
+        output_size = 6
+    elif args.predictor_type == "attitude":
+        output_size = 4
+
+    # Load model
     model = DynamicsLearning(
         args,
         resources_path,
         experiment_path,
-        input_size=input_size,
+        input_size=14,
         output_size=output_size,
-        valid_data=test_gt,
-        max_iterations=test_dataset.num_steps * args.epochs,
+        max_iterations=1,
     )
 
-    # Train the model
+    # Load the model
+    checkpoint = torch.load(model_path)
+    model.load_state_dict(checkpoint['state_dict'])
+
     trainer = pytorch_lightning.Trainer(
-        accelerator="gpu",
-        devices="auto",
-        default_root_dir=experiment_path,
         logger=wandb_logger,
-     
+        max_epochs=0,
     )
-    if trainer.is_global_zero:
-        wandb_logger.experiment.config.update(vars(args))
-    
-    # Validate the model
-    trainer.validate(model, test_loader, ckpt_path=model_path)
+
+    # Test model on different trajectories and display trajectory names in the logs
+    trainer.test(model, test_dataloaders, verbose=True)
+
+    print(dataloaders.keys())
+
+
 
 if __name__ == "__main__":
     # parse arguments
     args = parse_args()
 
     # Asser model type
-    assert args.model_type in ["mlp", "lstm", "gru", "tcn", "transformer"], "Model type must be one of [mlp, lstm, gru, tcn, transformer]"
-
-    # Assert attitude type
-    assert args.attitude in ["euler", "quaternion", "rotation"], "Attitude type must be one of [euler, quaternion, rotation]"
+    assert args.model_type in ["mlp", "lstm", "gru", "tcn"], "Model type must be one of [mlp, lstm, gru, tcn]"
 
     # Seed
     pytorch_lightning.seed_everything(args.seed)
 
-    # Assert vehicle type
-    assert args.vehicle_type in ["fixed_wing", "quadrotor"], "Vehicle type must be one of [fixed_wing, quadrotor]"
+    # Assert dataset 
+    assert args.dataset in ["pi_tcn", "neurobem"], "Vehicle type must be one of [fixed_wing, pi_tcn, neurobem]"
 
-    if args.vehicle_type == "fixed_wing":
-        vehicle_type = "fixed_wing"
-    else:
-        vehicle_type = "quadrotor"
+    if args.dataset == "pi_tcn":
+        dataset = "pi_tcn"
+    elif args.dataset == "neurobem":
+        dataset = "neurobem"
 
     # Set global paths
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
-    data_path = resources_path + "data/" + vehicle_type + "/"
+    data_path = resources_path + "data/" + dataset + "/"
     experiment_path = experiment_path = max(glob.glob(resources_path + "experiments/*/"), key=os.path.getctime) 
     model_path = max(glob.glob(experiment_path + "checkpoints/*.pth", recursive=True), key=os.path.getctime)
+    plotting_data_path = experiment_path + "plotting_data/"
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
                         os.path.join(experiment_path, "plots", "testset")])
@@ -103,16 +98,17 @@ if __name__ == "__main__":
     print("Testing Dynamics model:", model_path)
     args = load_args(experiment_path + "args.txt")
 
-    # Set unroll length to 1
-    args.unroll_length = 1
-    
+    model_name = args.model_type + "_" + str(args.history_length) + "_" + args.dataset + "_" + str(args.unroll_length) 
 
-    # Device
+    args.unroll_length = 60
+    
+    # device
     args.device = "cuda:0"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
-    print("Training model on cuda:" + str(args.gpu_id) + "\n")
 
-    # Train model
-    main(args)
 
-    
+    # Load all hdf5 paths in the data folder into a list sorted 
+    hdf5_files = sorted(glob.glob(data_path + "test/*.h5"))
+
+    # Test model on different trajectories
+    main(args, hdf5_files, model_path)

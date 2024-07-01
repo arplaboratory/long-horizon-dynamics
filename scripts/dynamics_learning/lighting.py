@@ -201,7 +201,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
     def test_step(self, test_batch, batch_idx, dataloader_idx=0):
         
         batch_loss, _ = self.eval_trajectory(test_batch)
-        self.log("MSE", batch_loss, on_step=True, prog_bar=True, logger=True)
+        if self.args.predictor_type == "velocity":
+            self.log("Velocity Error", batch_loss, on_step=True, prog_bar=True, logger=True)
+        elif self.args.predictor_type == "attitude":
+            self.log("Quaternion Error", batch_loss, on_step=True, prog_bar=True, logger=True)
 
         return batch_loss
             
