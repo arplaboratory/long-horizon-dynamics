@@ -38,6 +38,7 @@ python hdf5.py --dataset pi_tcn --history_length 20 --unroll_length 10
 ```
 
 ## Training 
+**Note:** Modify the predictor_type flag to specify whether to train the velocity predictor or the attitude predictor.
 ```
 python train.py --batch_size 1024 --model_type tcn --history_length 20 --unroll_length 10 --predictor_type velocity
 ```
