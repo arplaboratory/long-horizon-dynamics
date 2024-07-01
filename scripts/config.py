@@ -6,10 +6,10 @@ def parse_args():
 
     # architecture
     parser.add_argument('-N', '--model_type',      type=str,       default='gru')               # mlp, gru, lstm, tcn
-    parser.add_argument('--encoder_sizes',         type=list,      default='512,256,256')
-    parser.add_argument('--decoder_sizes',         type=list,      default='1024,512,512')
+    parser.add_argument('--encoder_sizes',         type=list,      default='256')
+    parser.add_argument('--decoder_sizes',         type=list,      default='64,64,32')
     parser.add_argument('--encoder_output',        type=str,       default='output')
-    parser.add_argument('--num_layers',            type=int,       default=4)
+    parser.add_argument('--num_layers',            type=int,       default=2)
     parser.add_argument('--kernel_size',           type=int,       default=2)
     parser.add_argument('--dropout',               type=float,     default=0.1)
 
@@ -44,7 +44,7 @@ def parse_args():
     
     # Data
     parser.add_argument('--sampling_frequency',    type=int,      default=100)
-    parser.add_argument('--unroll_length',         type=int,      default=10)
+    parser.add_argument('--unroll_length',         type=int,      default=2)
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--delta',                 type=bool,     default=True)
     parser.add_argument('--dataset',               type=str,      default='pi_tcn')         # pi_tcn, neurobem

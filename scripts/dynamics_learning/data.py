@@ -12,12 +12,8 @@ class DynamicsDataset(Dataset):
         self.batch_size = args.batch_size
 
         self.num_steps = np.ceil(self.X.shape[0] / self.batch_size).astype(int)
-        self.augmentations = args.augmentation
-        self.std_percentage = args.std_percentage
-        self.attitude = args.attitude
         self.model_type = args.model_type
         
-
         assert self.X.shape[0] == self.Y.shape[0]
         self.X_shape = self.X.shape
         self.Y_shape = self.Y.shape

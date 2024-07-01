@@ -49,8 +49,12 @@ def main(args):
     )
 
     input_size = train_dataset.X_shape[2]
-    output_size = 10
-
+    
+    if args.predictor_type == "velocity":
+        output_size = 6
+    elif args.predictor_type == "attitude":
+        output_size = 4
+    
     val_gt = valid_dataset.Y
     
     # Load model
@@ -63,7 +67,6 @@ def main(args):
         experiment_path,
         input_size=input_size,
         output_size=output_size,
-        valid_data=val_gt,
         max_iterations=train_dataset.num_steps * args.epochs,
     )
 
@@ -90,26 +93,21 @@ if __name__ == "__main__":
     # Asser model type
     assert args.model_type in ["mlp", "lstm", "gru", "tcn", "transformer"], "Model type must be one of [mlp, lstm, gru, tcn, transformer]"
 
-    # Assert attitude type
-    assert args.attitude in ["euler", "quaternion", "rotation"], "Attitude type must be one of [euler, quaternion, rotation]"
-
     # Seed
     pytorch_lightning.seed_everything(args.seed)
 
     # Assert vehicle type
-    assert args.vehicle_type in ["fixed_wing", "quadrotor", "neurobem"], "Vehicle type must be one of [fixed_wing, quadrotor, neurobem]"
+    assert args.dataset in ["pi_tcn", "neurobem"], "Vehicle type must be one of [fixed_wing, pi_tcn, neurobem]"
 
-    if args.vehicle_type == "fixed_wing":
-        vehicle_type = "fixed_wing"
-    elif args.vehicle_type == "quadrotor":
-        vehicle_type = "quadrotor"
-    elif args.vehicle_type == "neurobem":
-        vehicle_type = "neurobem"
+    if args.dataset == "pi_tcn":
+        dataset = "pi_tcn"
+    elif args.dataset == "neurobem":
+        dataset = "neurobem"
 
     # Set global paths
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
     resources_path = folder_path + "resources/"
-    data_path = resources_path + "data/" + vehicle_type + "/"
+    data_path = resources_path + "data/" + dataset + "/"
     experiment_path = resources_path + "experiments/" + time.strftime("%Y%m%d-%H%M%S") + "_" + str(args.run_id) + "/"
 
     check_folder_paths([os.path.join(experiment_path, "checkpoints"), os.path.join(experiment_path, "plots"), os.path.join(experiment_path, "plots", "trajectory"), 
