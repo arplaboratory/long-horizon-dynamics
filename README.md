@@ -20,12 +20,14 @@ conda activate dynamics_learning
 
 ## Dependencies
 
-```pip install -r requirements.txt```
-
-## Data Preparation
 ```
 git clone https://github.com/arplaboratory/FW-DYNAMICS_LEARNING.git
 cd DYNAMICS_LEARNING
+pip install -r requirements.txt
+```
+
+## Data Preparation
+```
 mkdir resources
 cd resources
 wget https://drive.google.com/file/d/1BB-r63qgiqB5uJ5xVbTcfR-6j9rXCFCA/view?usp=sharing
