@@ -40,6 +40,7 @@ We first pre-process the dataset and store it in an hdf5 file -
 cd ../scripts
 python hdf5.py --dataset pi_tcn --history_length 20 --unroll_length 10
 ```
+**Note:** Modify the dataset flag to specify [pi_tcn](https://arxiv.org/pdf/2206.03305) dataset or [neurobem](https://rpg.ifi.uzh.ch/docs/RSS21_Bauersfeld.pdf) dataset.
 
 ## Training 
 **Note:** Modify the predictor_type flag to specify whether to train the velocity predictor or the attitude predictor.
@@ -51,6 +52,7 @@ python train.py --batch_size 1024 --model_type tcn --history_length 20 --unroll_
 ```
 python eval.py
 ```
+**Note:** The evaluation script uses the best-trained model to assess performance on various test trajectories, reporting the velocity error for the velocity predictor and the quaternion error for the attitude predictor.
 
 ## License
 Please be aware that this code was originally implemented for research purposes and may be subject to changes and any fitness for a particular purpose is disclaimed. To inquire about commercial licenses, please contact Pratyaksh Prabhav Rao (pr2257@nyu.edu), Alessandro Saviolo (alessandro.saviolo@nyu.edu), and Prof. Giuseppe Loianno (loiannog@nyu.edu).
