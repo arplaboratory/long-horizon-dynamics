@@ -8,6 +8,18 @@ An overview of our proposed methodology can be found [video]().
 ## Abstract
 Accurate modeling of system dynamics is crucial for achieving high-performance planning and control of robotic systems. Although existing data-driven approaches represent a promising approach for modeling dynamics, their accuracy is limited to a short prediction horizon, overlooking the impact of compounding prediction errors over longer prediction horizons. Strategies to mitigate these cumulative errors remain underexplored. To bridge this gap, in this paper, we study the key design choices for efficiently learning long-horizon prediction dynamics for quadrotors. Specifically, we analyze the impact of multiple architectures, historical  data, and multi-step loss formulation. We show that sequential modeling techniques showcase their advantage in minimizing compounding errors compared to other types of solutions. Furthermore, we propose a novel decoupled dynamics learning approach, which further simplifies the learning process while also enhancing the approach modularity. Extensive experiments and ablation studies on real-world quadrotor data demonstrate the versatility and precision of the proposed approach. Our outcomes offer several insights and methodologies for enhancing long-term predictive accuracy of learned quadrotor dynamics for planning and control.
 
+## Citation
+If you publish a paper with our codebase, please cite our paper published in IEEE/RSJ International Conference on Intelligent Robots and Systems: 
+```
+@ARTICLE{longhorizondynamics2024,
+  author={Rao, Pratyaksh and Saviolo, Alessandro and Ferrari, Castiglione, Tommaso and Loianno, Giuseppe},
+  title={Learning Long-Horizon Predictions for Quadrotor Dynamics}, 
+  booktitle={2024 IEEE/RSJ International Conference on Intelligent Robots and Systems},
+  pages={},
+  year={2024},
+  organization={IEEE}
+ ```
+
 ## Installation
 The code is tested with Python 3.8, PyTorch 2.12, and CUDA 11.8.
 
