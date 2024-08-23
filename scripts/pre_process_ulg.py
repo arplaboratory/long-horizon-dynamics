@@ -25,7 +25,11 @@ class ProcessULog:
         for m in self.messages:
             try:
                 dataset = self.ulog.get_dataset(m)
-                data[m] = dataset.data
+                df = pd.DataFrame(dataset.data)
+                # Convert timestamp to seconds and normalize to start from zero
+                df['timestamp'] = df['timestamp'] / 1_000_000  # Convert to seconds
+                df['timestamp'] -= df['timestamp'].iloc[0]  # Normalize to start from zero
+                data[m] = df
             except KeyError:
                 print(f"Message '{m}' not found in the ULog file.")
         return data
