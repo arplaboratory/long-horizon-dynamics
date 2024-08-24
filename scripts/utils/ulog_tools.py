@@ -1,0 +1,25 @@
+import pandas as pd
+import os
+
+from pathlib import Path
+from pyulog import core
+
+
+def load_ulog(rel_ulog_path):
+    proj_path = Path(os.getcwd())
+    log_file_path = os.path.join(proj_path, rel_ulog_path)
+    ulog = core.ULog(log_file_path)
+    return ulog
+
+
+def pandas_from_topic(ulog, topic_list, id=0):
+    assert type(topic_list) is list, "topic_list input must be a list"
+    topics_df = pd.DataFrame()
+    for topic in topic_list:
+        topic_data = ulog.get_dataset(topic, id)
+        curr_df = pd.DataFrame.from_dict(topic_data.data)
+        if topics_df.empty:
+            topics_df = curr_df
+        else:
+            topics_df = pd.concat([topics_df, curr_df], axis=1)
+    return topics_df.dropna()

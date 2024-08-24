@@ -1,0 +1,291 @@
+import pandas as pd
+import math
+import time
+import yaml
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from pyulog import ULog
+from utils.model_config import ModelConfig
+from utils.ulog_tools import load_ulog, pandas_from_topic
+from utils.dataframe_tools import compute_flight_time, resample_dataframe_list
+from utils.quat_utils import quaternion_to_rotation_matrix
+from progress.bar import Bar
+
+
+class DataPreprocessing(object):
+
+    visual_dataframe_selector_config_dict = {
+        "x_axis_col": "timestamp",
+        "sub_plt1_data": ["q0", "q1", "q2", "q3"],
+        "sub_plt2_data": ["u0", "u1", "u2", "u3"],
+    }
+
+    def __init__(self, config_file, selection_var="none"):
+        
+        self.config = ModelConfig(config_file)
+        config_dict = self.config.dynamics_model_config
+
+        assert type(config_dict) is dict, "req_topics_dict input must be a dict"
+        assert bool(config_dict), "req_topics_dict can not be empty"
+        self.config_dict = config_dict
+        self.resample_freq = config_dict["resample_freq"]
+        self.estimate_angular_acceleration = config_dict[
+            "estimate_angular_acceleration"
+        ]
+        print("Resample frequency: ", self.resample_freq, "Hz")
+        self.req_topics_dict = config_dict["data"]["required_ulog_topics"]
+
+        if selection_var != "none":
+            split = selection_var.split("/")
+            assert (
+                len(split) == 2
+            ), "Setpoint variable must be of the form: topic_name/variable_name"
+
+            topic_name = split[0]
+            variable_name = split[1]
+
+            if topic_name in self.req_topics_dict.keys():
+                assert (
+                    "ulog_name" in self.req_topics_dict[topic_name].keys()
+                    and "dataframe_name" in self.req_topics_dict[topic_name].keys()
+                ), "Topic already exists but does not have the required keys"
+
+                if variable_name in self.req_topics_dict[topic_name]["ulog_name"]:
+                    raise AttributeError(
+                        "Please only variables for setpoint data selection that are not used in a different context for system identification"
+                    )
+
+                assert (
+                    "timestamp" in self.req_topics_dict[topic_name]["ulog_name"]
+                    and "timestamp"
+                    in self.req_topics_dict[topic_name]["dataframe_name"]
+                ), "Topic already exists but does not have the required timestamp key"
+
+                self.req_topics_dict[topic_name]["ulog_name"].append(variable_name)
+                self.req_topics_dict[topic_name]["dataframe_name"].append(variable_name)
+
+            else:
+                self.req_topics_dict[topic_name] = {
+                    "ulog_name": ["timestamp", variable_name],
+                    "dataframe_name": ["timestamp", variable_name],
+                }
+
+            print(
+                "Augmented required topics list with setpoint variable:",
+                variable_name,
+                "from topic",
+                topic_name,
+            )
+
+        self.req_dataframe_topic_list = config_dict["data"]["req_dataframe_topic_list"]
+
+        # used to generate a dict with the resulting coefficients later on.
+        self.coef_name_list = []
+        self.result_dict = {}
+
+    def loadLogs(self, rel_data_path):
+        self.rel_data_path = rel_data_path
+        self.loadLogFile(rel_data_path)
+        # if os.path.isdir(rel_data_path):
+        #     self.data_df = pd.DataFrame()
+        #     for filename in os.listdir(rel_data_path):
+        #         self.loadLogFile(os.path.join(rel_data_path, filename))
+        # else:
+        #     if not self.loadLogFile(rel_data_path):
+        #         raise TypeError("File extension needs to be either csv or ulg")
+
+    def loadLogFile(self, rel_data_path):
+        if rel_data_path.endswith(".csv"):
+            print("Loading CSV file: ", rel_data_path)
+            self.data_df = pd.read_csv(rel_data_path, index_col=0)
+            print("Loading topics: ", self.req_dataframe_topic_list)
+            for req_topic in self.req_dataframe_topic_list:
+                assert req_topic in self.data_df, "missing topic in loaded csv: " + str(
+                    req_topic
+                )
+            return True
+
+        elif rel_data_path.endswith(".ulg"):
+            print("Loading uLog file: ", rel_data_path)
+            ulog = load_ulog(rel_data_path)
+            print("Loading topics:")
+            for req_topic in self.req_topics_dict:
+                print(req_topic)
+            self.check_ulog_for_req_topics(ulog)
+
+            # compute flight time based on the landed topic
+            landed_df = pandas_from_topic(ulog, ["vehicle_land_detected"])
+            fts = compute_flight_time(landed_df)
+
+            if len(fts) == 1:
+                self.data_df = self.compute_resampled_dataframe(ulog, fts[0])
+            else:
+                for ft in fts:
+                    # check if the dataframe already exists and if so, append to it
+                    if getattr(self, "data_df", None) is None:
+                        self.data_df = self.compute_resampled_dataframe(ulog, ft)
+                    else:
+                        self.data_df.append(self.compute_resampled_dataframe(ulog, ft))
+
+            return True
+
+        else:
+
+            return False
+    
+    def check_ulog_for_req_topics(self, ulog):
+        for topic_type in self.req_topics_dict.keys():
+            try:
+                topic_dict = self.req_topics_dict[topic_type]
+                if "id" in topic_dict.keys():
+                    id = topic_dict["id"]
+                    topic_type_data = ulog.get_dataset(topic_type)
+                else:
+                    topic_type_data = ulog.get_dataset(topic_type)
+            except:
+                print("Missing topic type: ", topic_type)
+                exit(1)
+            topic_type_data = topic_type_data.data
+            ulog_topic_list = self.req_topics_dict[topic_type]["ulog_name"]
+            for topic_index in range(len(ulog_topic_list)):
+                try:
+                    topic = ulog_topic_list[topic_index]
+                    topic_data = topic_type_data[topic]
+                except:
+                    print("Missing topic: ", topic_type, ulog_topic_list[topic_index])
+                    exit(1)
+        return
+    
+    def compute_resampled_dataframe(self, ulog, fts):
+        print("Starting data resampling of topic types: ", self.req_topics_dict.keys())
+        # setup object to crop dataframes for flight data
+        df_list = []
+        topic_type_bar = Bar("Resampling", max=len(self.req_topics_dict.keys()))
+
+        # getting data
+        for topic_type in self.req_topics_dict.keys():
+            topic_dict = self.req_topics_dict[topic_type]
+
+            if "id" in topic_dict.keys():
+                id = topic_dict["id"]
+                curr_df = pandas_from_topic(ulog, [topic_type], id)
+            else:
+                curr_df = pandas_from_topic(ulog, [topic_type])
+
+            curr_df = curr_df[topic_dict["ulog_name"]]
+            if "dataframe_name" in topic_dict.keys():
+                assert len(topic_dict["dataframe_name"]) == len(
+                    topic_dict["ulog_name"]
+                ), (
+                    "could not rename topics of type",
+                    topic_type,
+                    "due to rename list not having an entry for every topic.",
+                )
+                curr_df.columns = topic_dict["dataframe_name"]
+            topic_type_bar.next()
+            if (
+                topic_type == "vehicle_angular_velocity"
+                and self.estimate_angular_acceleration
+            ):
+                ang_vel_mat = curr_df[
+                    ["ang_vel_x", "ang_vel_y", "ang_vel_z"]
+                ].to_numpy()
+                time_in_secods_np = curr_df[["timestamp"]].to_numpy() / 1000000
+                time_in_secods_np = time_in_secods_np.flatten()
+                ang_acc_np = np.gradient(ang_vel_mat, time_in_secods_np, axis=0)
+                topic_type_bar.next()
+                curr_df[["ang_acc_b_x", "ang_acc_b_y", "ang_acc_b_z"]] = ang_acc_np
+
+            df_list.append(curr_df)
+
+        topic_type_bar.finish()
+
+        # Check if actuator topics are empty
+        if not fts:
+            print("could not select flight time due to missing actuator topic")
+            exit(1)
+
+        if isinstance(fts, list):
+            resampled_df = []
+            for ft in fts:
+                new_resampled_df = resample_dataframe_list(
+                    df_list, ft, self.resample_freq
+                )
+                resampled_df.append(new_resampled_df)
+            resampled_df = pd.concat(resampled_df, ignore_index=True)
+        else:
+            resampled_df = resample_dataframe_list(df_list, fts, self.resample_freq)
+
+        if self.estimate_angular_acceleration:
+            ang_vel_mat = resampled_df[
+                ["ang_vel_x", "ang_vel_y", "ang_vel_z"]
+            ].to_numpy()
+            for i in range(3):
+                ang_vel_mat[:, i] = (
+                    np.convolve(ang_vel_mat[:, i], np.ones(33), mode="same") / 33
+                )
+
+            # Alternate forward differentiation version
+            # ang_vel_mat_1 = np.roll(ang_vel_mat, -1, axis=0)
+            # diff_angular_acc_mat = (
+            #     ang_vel_mat_1 - ang_vel_mat) * self.resample_freq
+            # resampled_df[["ang_acc_b_x", "ang_acc_b_y",
+            #               "ang_acc_b_z"]] = diff_angular_acc_mat
+
+            time_in_secods_np = resampled_df[["timestamp"]].to_numpy() / 1000000
+            time_in_secods_np = time_in_secods_np.flatten()
+            ang_acc_np = np.gradient(ang_vel_mat, time_in_secods_np, axis=0)
+            topic_type_bar.next()
+            resampled_df[["ang_acc_b_x", "ang_acc_b_y", "ang_acc_b_z"]] = ang_acc_np
+
+        return resampled_df.dropna()
+
+    def get_dataframes(self):
+        return self.data_df
+
+    def visualize_data(self):
+        def plot_scatter(
+            ax, title, dataframe_x, dataframe_y, dataframe_z, color="blue"
+        ):
+            ax.scatter(
+                self.data_df[dataframe_x],
+                self.data_df[dataframe_y],
+                self.data_df[dataframe_z],
+                s=10,
+                facecolor=color,
+                lw=0,
+                alpha=0.1,
+            )
+            ax.set_title(title)
+            ax.set_xlabel(dataframe_x)
+            ax.set_ylabel(dataframe_y)
+            ax.set_zlabel(dataframe_z)
+
+        num_plots = 2
+        fig = plt.figure("Data Visualization")
+        ax1 = fig.add_subplot(num_plots, 2, 1, projection="3d")
+        plot_scatter(ax1, "Local Velocity", "vx", "vy", "vz")
+
+        ax2 = fig.add_subplot(num_plots, 2, 2, projection="3d")
+        plot_scatter(ax2, "Body Acceleration", "acc_b_x", "acc_b_y", "acc_b_z", "red")
+
+        ax3 = fig.add_subplot(num_plots, 2, 3, projection="3d")
+        plot_scatter(
+            ax3, "Body Angular Velocity", "ang_vel_x", "ang_vel_y", "ang_vel_z", "red"
+        )
+
+        ax4 = fig.add_subplot(num_plots, 2, 4, projection="3d")
+        plot_scatter(
+            ax4,
+            "Body Angular Acceleration",
+            "ang_acc_b_x",
+            "ang_acc_b_y",
+            "ang_acc_b_z",
+            "red",
+        )
+        # plt.show(block=False)
+        plt.show()
+
+
+
