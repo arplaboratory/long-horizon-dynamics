@@ -94,7 +94,6 @@ def compute_flight_time(data_df):
                     "t_end": flight_segment.iloc[-1, 0],
                 }
             )
-
         return flight_times
 
     print("Flight time computation completed successfully.")

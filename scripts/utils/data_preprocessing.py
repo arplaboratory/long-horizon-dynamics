@@ -11,14 +11,27 @@ from utils.ulog_tools import load_ulog, pandas_from_topic
 from utils.dataframe_tools import compute_flight_time, resample_dataframe_list
 from utils.quat_utils import quaternion_to_rotation_matrix
 from progress.bar import Bar
+import vpselector 
 
+plt.rcParams["figure.figsize"] = (20, 16)
+plt.rcParams['lines.linewidth'] = 2
+plt.rcParams.update({
+    #"text.usetex": True,
+    "font.family": "sans",
+    "font.size": 16,
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42
+})
+colors = ["#365282", "#9FBDA0","#edb120", "#E84C53", "#ff7f00", "#984ea3", "#f781bf", "#999999"]
 
 class DataPreprocessing(object):
 
     visual_dataframe_selector_config_dict = {
         "x_axis_col": "timestamp",
         "sub_plt1_data": ["q0", "q1", "q2", "q3"],
-        "sub_plt2_data": ["u0", "u1", "u2", "u3"],
+        "sub_plt2_data": ["throttle", "aileron", "elevator", "rudder"],
+        "sub_plt3_data": ["vx", "vy", "vz"],
+        "sub_plt4_data": ["ang_vel_x", "ang_vel_y", "ang_vel_z"],
     }
 
     def __init__(self, config_file, selection_var="none"):
@@ -87,14 +100,7 @@ class DataPreprocessing(object):
     def loadLogs(self, rel_data_path):
         self.rel_data_path = rel_data_path
         self.loadLogFile(rel_data_path)
-        # if os.path.isdir(rel_data_path):
-        #     self.data_df = pd.DataFrame()
-        #     for filename in os.listdir(rel_data_path):
-        #         self.loadLogFile(os.path.join(rel_data_path, filename))
-        # else:
-        #     if not self.loadLogFile(rel_data_path):
-        #         raise TypeError("File extension needs to be either csv or ulg")
-
+        
     def loadLogFile(self, rel_data_path):
         if rel_data_path.endswith(".csv"):
             print("Loading CSV file: ", rel_data_path)
@@ -226,13 +232,7 @@ class DataPreprocessing(object):
                     np.convolve(ang_vel_mat[:, i], np.ones(33), mode="same") / 33
                 )
 
-            # Alternate forward differentiation version
-            # ang_vel_mat_1 = np.roll(ang_vel_mat, -1, axis=0)
-            # diff_angular_acc_mat = (
-            #     ang_vel_mat_1 - ang_vel_mat) * self.resample_freq
-            # resampled_df[["ang_acc_b_x", "ang_acc_b_y",
-            #               "ang_acc_b_z"]] = diff_angular_acc_mat
-
+        
             time_in_secods_np = resampled_df[["timestamp"]].to_numpy() / 1000000
             time_in_secods_np = time_in_secods_np.flatten()
             ang_acc_np = np.gradient(ang_vel_mat, time_in_secods_np, axis=0)
@@ -244,48 +244,88 @@ class DataPreprocessing(object):
     def get_dataframes(self):
         return self.data_df
 
+
     def visualize_data(self):
-        def plot_scatter(
-            ax, title, dataframe_x, dataframe_y, dataframe_z, color="blue"
-        ):
-            ax.scatter(
-                self.data_df[dataframe_x],
-                self.data_df[dataframe_y],
-                self.data_df[dataframe_z],
-                s=10,
-                facecolor=color,
-                lw=0,
-                alpha=0.1,
-            )
-            ax.set_title(title)
-            ax.set_xlabel(dataframe_x)
-            ax.set_ylabel(dataframe_y)
-            ax.set_zlabel(dataframe_z)
-
-        num_plots = 2
-        fig = plt.figure("Data Visualization")
-        ax1 = fig.add_subplot(num_plots, 2, 1, projection="3d")
-        plot_scatter(ax1, "Local Velocity", "vx", "vy", "vz")
-
-        ax2 = fig.add_subplot(num_plots, 2, 2, projection="3d")
-        plot_scatter(ax2, "Body Acceleration", "acc_b_x", "acc_b_y", "acc_b_z", "red")
-
-        ax3 = fig.add_subplot(num_plots, 2, 3, projection="3d")
-        plot_scatter(
-            ax3, "Body Angular Velocity", "ang_vel_x", "ang_vel_y", "ang_vel_z", "red"
-        )
-
-        ax4 = fig.add_subplot(num_plots, 2, 4, projection="3d")
-        plot_scatter(
-            ax4,
-            "Body Angular Acceleration",
-            "ang_acc_b_x",
-            "ang_acc_b_y",
-            "ang_acc_b_z",
-            "red",
-        )
-        # plt.show(block=False)
-        plt.show()
+        
+        velocity_headers = ["vx", "vy", "vz"]
+        acceleration_headers = ["acc_b_x", "acc_b_y", "acc_b_z"]
+        angular_velocity_headers = ["ang_vel_x", "ang_vel_y", "ang_vel_z"]
+        quaternion_headers = ["q0", "q1", "q2", "q3"]
+        control_headers = ["throttle", "aileron", "elevator", "rudder"]
 
 
+        # plot each of the dataframes separately and save the plots as a pdf
 
+        # Convert timestamp to seconds and start from 0
+        self.data_df["timestamp"] = (self.data_df["timestamp"] - self.data_df["timestamp"].iloc[0]) / 1e6
+
+        # Local velocity
+        fig, axs = plt.subplots(3, 1, figsize=(20, 16)) 
+        for i in range(3):
+            axs[i].plot(self.data_df["timestamp"], self.data_df[velocity_headers[i]], color=colors[i])
+            axs[i].set_ylabel(velocity_headers[i])
+            axs[i].set_xlabel("Time [s]")
+            axs[i].grid(alpha=0.3)
+        axs[0].set_title("Local Velocity")
+        
+        # Save plots in assets folder
+        assets_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../assets")
+        plt.savefig(os.path.join(assets_path, "local_velocity.pdf"))
+        plt.tight_layout()
+
+
+        # Body acceleration
+        fig, axs = plt.subplots(3, 1, figsize=(20, 16))
+        for i in range(3):
+            axs[i].plot(self.data_df["timestamp"], self.data_df[acceleration_headers[i]], color=colors[i])
+            axs[i].set_ylabel(acceleration_headers[i])
+            axs[i].set_xlabel("Time [s]")
+            axs[i].grid(alpha=0.3)
+
+        axs[0].set_title("Body Acceleration")
+        plt.savefig(os.path.join(assets_path, "body_acceleration.pdf"))
+        plt.tight_layout()
+
+        # Body angular velocity
+        fig, axs = plt.subplots(3, 1, figsize=(20, 16))
+        for i in range(3):
+            axs[i].plot(self.data_df["timestamp"], self.data_df[angular_velocity_headers[i]], color=colors[i])
+            axs[i].set_ylabel(angular_velocity_headers[i])
+            axs[i].set_xlabel("Time [s]")
+            axs[i].grid(alpha=0.3)
+
+        axs[0].set_title("Body Angular Velocity")
+        plt.savefig(os.path.join(assets_path, "body_angular_velocity.pdf"))
+        plt.tight_layout()
+
+        # Quaternion
+        fig, axs = plt.subplots(4, 1, figsize=(20, 16))
+        for i in range(4):
+            axs[i].plot(self.data_df["timestamp"], self.data_df[quaternion_headers[i]], color=colors[i])
+            axs[i].set_ylabel(quaternion_headers[i])
+            axs[i].set_xlabel("Time [s]")
+            axs[i].grid(alpha=0.3)
+
+        axs[0].set_title("Quaternion")
+        plt.savefig(os.path.join(assets_path, "quaternion.pdf"))
+        plt.tight_layout()
+
+        # Control inputs
+        fig, axs = plt.subplots(4, 1, figsize=(20, 16))
+        for i in range(4):
+            axs[i].plot(self.data_df["timestamp"], self.data_df[control_headers[i]], color=colors[i])
+            axs[i].set_ylabel(control_headers[i])
+            axs[i].set_xlabel("Time [s]")
+            axs[i].grid(alpha=0.3)
+
+        axs[0].set_title("Control Inputs")
+        plt.savefig(os.path.join(assets_path, "control_inputs.pdf"))
+        plt.tight_layout()
+
+    def select_data(self, save_path):
+        
+        # Interactive data selection using vpselector
+        selected_df = vpselector.select_visual_data(self.data_df, self.visual_dataframe_selector_config_dict)
+        selected_df.to_csv(save_path, index=False)
+
+        
