@@ -1,9 +1,22 @@
 from utils import DataPreprocessing
 import os 
+import sys
+from dynamics_learning.utils import check_folder_paths
 
-config_file = '/home/pratyaksh/arpl/workspaces/ws_dynamics/FW-DYNAMICS_LEARNING/configs/fixedwing.yaml'
-ulog_dir = '/home/pratyaksh/arpl/workspaces/ws_dynamics/FW-DYNAMICS_LEARNING/resources/data/arpl_fixed/px4_ulog/'
-save_csv_dir = '/home/pratyaksh/arpl/workspaces/ws_dynamics/FW-DYNAMICS_LEARNING/resources/data/arpl_fixed/px4_csv/'
+
+
+# Set global paths 
+folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"
+resources_path = folder_path + "resources/"
+configs_path = folder_path + "configs/"
+
+config_file = configs_path + "fixedwing.yaml"
+ulog_dir = resources_path + "data/arpl_fixed/px4_ulog/"
+save_csv_dir = resources_path + "data/arpl_fixed/px4_csv/"
+
+# check folder paths
+check_folder_paths([ulog_dir, save_csv_dir])
+
 data_preprocessor = DataPreprocessing(config_file=config_file, selection_var="none")
 
 # load logs for all ulog files in the specified directory 
