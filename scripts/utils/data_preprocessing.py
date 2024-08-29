@@ -32,6 +32,7 @@ class DataPreprocessing(object):
         "sub_plt2_data": ["throttle", "aileron", "elevator", "rudder"],
         "sub_plt3_data": ["vx", "vy", "vz"],
         "sub_plt4_data": ["ang_vel_x", "ang_vel_y", "ang_vel_z"],
+        "sub_plt4_data": ["x", "y", "z"],
     }
 
     def __init__(self, config_file, selection_var="none"):
@@ -325,7 +326,22 @@ class DataPreprocessing(object):
     def select_data(self, save_path):
         
         # Interactive data selection using vpselector
-        selected_df = vpselector.select_visual_data(self.data_df, self.visual_dataframe_selector_config_dict)
-        selected_df.to_csv(save_path, index=False)
+        # selected_df = vpselector.select_visual_data(self.data_df, self.visual_dataframe_selector_config_dict)
+        # # Rename timestamp header to 't'
+        # selected_df.rename(columns={"timestamp": "t"}, inplace=True)
+        # selected_df.to_csv(save_path, index=False)
+
+        self.data_df.rename(columns={"timestamp": "t"}, inplace=True)
+        self.data_df.to_csv(save_path, index=False)
+    
+        # plot x, y
+        # fig, axs = plt.subplots(1, 1, figsize=(20, 16)) 
+        # axs.plot(selected_df["y"], selected_df["x"], color=colors[0])
+        # axs.set_ylabel("y")
+        # axs.set_xlabel("x")
+        # axs.grid(alpha=0.3)
+        # axs.set_title("Trajectory")
+        # # show
+        # plt.show()
 
         

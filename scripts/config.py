@@ -5,7 +5,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Arguments for dynamics learning')
 
     # architecture
-    parser.add_argument('-N', '--model_type',      type=str,       default='gru')               # mlp, gru, lstm, tcn
+    parser.add_argument('-N', '--model_type',      type=str,       default='tcn')               # mlp, gru, lstm, tcn
     parser.add_argument('--encoder_sizes',         type=list,      default='256')
     parser.add_argument('--decoder_sizes',         type=list,      default='64,64,32')
     parser.add_argument('--encoder_output',        type=str,       default='output')
@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument('--unroll_length',         type=int,      default=2)
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--delta',                 type=bool,     default=True)
-    parser.add_argument('--dataset',               type=str,      default='pi_tcn')         # pi_tcn, neurobem
+    parser.add_argument('--dataset',               type=str,      default='arpl_fixed_wing')         # pi_tcn, neurobem, fixed_wing, arpl_fixed_wing
 
     args = parser.parse_args()
     for arg in vars(args):

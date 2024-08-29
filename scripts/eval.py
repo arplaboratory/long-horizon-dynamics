@@ -76,12 +76,14 @@ if __name__ == "__main__":
     pytorch_lightning.seed_everything(args.seed)
 
     # Assert dataset 
-    assert args.dataset in ["pi_tcn", "neurobem"], "Vehicle type must be one of [fixed_wing, pi_tcn, neurobem]"
+    assert args.dataset in ["pi_tcn", "neurobem", "arpl_fixed_wing"], "Vehicle type must be one of [arpl_fixed_wing, pi_tcn, neurobem]"
 
     if args.dataset == "pi_tcn":
         dataset = "pi_tcn"
     elif args.dataset == "neurobem":
         dataset = "neurobem"
+    elif args.dataset == "arpl_fixed_wing":
+        dataset = "arpl_fixed_wing"
 
     # Set global paths
     folder_path = "/".join(sys.path[0].split("/")[:-1]) + "/"

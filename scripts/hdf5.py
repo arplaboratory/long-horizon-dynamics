@@ -20,6 +20,13 @@ def extract_data(data, dataset_name):
             attitude_data = data[['quat w', 'quat x', 'quat y', 'quat z']].values
             angular_velocity_data = data[['ang vel x', 'ang vel y', 'ang vel z']].values
             control_data = data[['mot 1', 'mot 2', 'mot 3', 'mot 4']].values * 0.001
+
+        elif dataset_name == "arpl_fixed_wing":
+            velocity_data = data[['vx', 'vy', 'vz']].values
+            attitude_data = data[['q0', 'q1', 'q2', 'q3']].values
+            angular_velocity_data = data[['ang_vel_x', 'ang_vel_y', 'ang_vel_z']].values
+            control_data = data[['throttle', 'aileron', 'elevator', 'rudder']].values
+
         else:
             raise ValueError(f"Invalid dataset name: {dataset_name}")
     except KeyError as e:
@@ -29,6 +36,8 @@ def extract_data(data, dataset_name):
 
 
 def csv_to_hdf5(args, data_path):
+
+    print("Converting csv files to hdf5 ...", data_path)
 
     hdf5(data_path, 'train/', 'train.h5',  args.dataset,  args.history_length, args.unroll_length)
     hdf5(data_path, 'valid/', 'valid.h5',  args.dataset,  args.history_length, args.unroll_length)
@@ -44,15 +53,6 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, history_length, unroll_leng
         if file.endswith(".csv"):
             csv_file_path = os.path.join(data_path + folder_name, file)
             data = pd.read_csv(csv_file_path)
-
-            # Modify time to start from 0
-            data['t'] = data['t'] - data['t'].values[0]
-
-            data['t'] = pd.to_datetime(data['t'], unit='s')
-
-            data.set_index('t', inplace=True)
-            data = data.resample('0.01s').mean()
-            data.reset_index(inplace=True)
 
             velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
             data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
@@ -101,15 +101,6 @@ def hdf5_trajectories(data_path, folder_name, dataset, history_length, unroll_le
         if file.endswith(".csv"):
             csv_file_path = os.path.join(data_path + folder_name, file)
             data = pd.read_csv(csv_file_path)
-
-            # Modify time to start from 0
-            data['t'] = data['t'] - data['t'].values[0]
-
-            data['t'] = pd.to_datetime(data['t'], unit='s')
-
-            data.set_index('t', inplace=True)
-            data = data.resample('0.01s').mean()
-            data.reset_index(inplace=True)
 
             velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
 
