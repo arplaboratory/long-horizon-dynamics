@@ -11,8 +11,8 @@ resources_path = folder_path + "resources/"
 configs_path = folder_path + "configs/"
 
 config_file = configs_path + "fixedwing.yaml"
-ulog_dir = resources_path + "data/arpl_fixed/px4_ulog/"
-save_csv_dir = resources_path + "data/arpl_fixed/px4_csv/"
+ulog_dir = resources_path + "data/arpl_fixed_wing/px4_ulog/"
+save_csv_dir = resources_path + "data/arpl_fixed_wing/px4_csv/"
 
 # check folder paths
 check_folder_paths([ulog_dir, save_csv_dir])

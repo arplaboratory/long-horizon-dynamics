@@ -39,12 +39,15 @@ def main(args, hdf5_files, model_path):
     elif args.predictor_type == "attitude":
         output_size = 4
 
+    # Get input size from the dataset
+    input_size = next(iter(dataloaders.values())).dataset.X_shape[2]
+
     # Load model
     model = DynamicsLearning(
         args,
         resources_path,
         experiment_path,
-        input_size=14,
+        input_size=input_size,
         output_size=output_size,
         max_iterations=1,
     )
@@ -102,7 +105,7 @@ if __name__ == "__main__":
 
     model_name = args.model_type + "_" + str(args.history_length) + "_" + args.dataset + "_" + str(args.unroll_length) 
 
-    args.unroll_length = 60
+    args.unroll_length = 5
     
     # device
     args.device = "cuda:0"

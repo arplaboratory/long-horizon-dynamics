@@ -44,10 +44,11 @@ def parse_args():
     
     # Data
     parser.add_argument('--sampling_frequency',    type=int,      default=100)
-    parser.add_argument('--unroll_length',         type=int,      default=2)
+    parser.add_argument('--unroll_length',         type=int,      default=10)
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--delta',                 type=bool,     default=True)
     parser.add_argument('--dataset',               type=str,      default='arpl_fixed_wing')         # pi_tcn, neurobem, fixed_wing, arpl_fixed_wing
+    parser.add_argument('--augment_input',         type=str,      default='vawP') # va, w, P, vawP
 
     args = parser.parse_args()
     for arg in vars(args):

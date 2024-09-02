@@ -8,42 +8,28 @@ from dynamics_learning.utils import Euler2Quaternion
 from config import parse_args
 
 def extract_data(data, dataset_name):
-    try:
-        if dataset_name == "pi_tcn":
-            velocity_data = data[['v_x', 'v_y', 'v_z']].values
-            attitude_data = data[['q_w', 'q_x', 'q_y', 'q_z']].values
-            angular_velocity_data = data[['w_x', 'w_y', 'w_z']].values
-            control_data = data[['u_0', 'u_1', 'u_2', 'u_3']].values * 0.001
+   
 
-        elif dataset_name == "neurobem":
-            velocity_data = data[['vel x', 'vel y', 'vel z']].values
-            attitude_data = data[['quat w', 'quat x', 'quat y', 'quat z']].values
-            angular_velocity_data = data[['ang vel x', 'ang vel y', 'ang vel z']].values
-            control_data = data[['mot 1', 'mot 2', 'mot 3', 'mot 4']].values * 0.001
+    velocity_data = data[['vx', 'vy', 'vz']].values
+    attitude_data = data[['q0', 'q1', 'q2', 'q3']].values
+    angular_velocity_data = data[['ang_vel_x', 'ang_vel_y', 'ang_vel_z']].values
+    airspeed = data['airspeed'].values
+    wind = data[['wind_north', 'wind_east']].values
+    differential_pressure = data['diff_pressure'].values
+    control_data = data[['throttle', 'aileron', 'elevator', 'rudder']].values
 
-        elif dataset_name == "arpl_fixed_wing":
-            velocity_data = data[['vx', 'vy', 'vz']].values
-            attitude_data = data[['q0', 'q1', 'q2', 'q3']].values
-            angular_velocity_data = data[['ang_vel_x', 'ang_vel_y', 'ang_vel_z']].values
-            control_data = data[['throttle', 'aileron', 'elevator', 'rudder']].values
-
-        else:
-            raise ValueError(f"Invalid dataset name: {dataset_name}")
-    except KeyError as e:
-        raise KeyError(f"Invalid field in dataset '{dataset_name}': {e}")
-
-    return velocity_data, attitude_data, angular_velocity_data, control_data
+    return velocity_data, attitude_data, angular_velocity_data, airspeed, wind, differential_pressure, control_data
 
 
 def csv_to_hdf5(args, data_path):
 
     print("Converting csv files to hdf5 ...", data_path)
 
-    hdf5(data_path, 'train/', 'train.h5',  args.dataset,  args.history_length, args.unroll_length)
-    hdf5(data_path, 'valid/', 'valid.h5',  args.dataset,  args.history_length, args.unroll_length)
-    hdf5_trajectories(data_path, 'test/',  args.dataset,  args.history_length, 60)
+    hdf5(data_path, 'train/', 'train.h5',  args.dataset,  args.history_length, args.unroll_length, args.augment_input)
+    hdf5(data_path, 'valid/', 'valid.h5',  args.dataset,  args.history_length, args.unroll_length, args.augment_input)
+    hdf5_trajectories(data_path, 'test/',  args.dataset,  args.history_length, 60, args.augment_input)
 
-def hdf5(data_path, folder_name, hdf5_file, dataset, history_length, unroll_length):
+def hdf5(data_path, folder_name, hdf5_file, dataset, history_length, unroll_length, augment_input):
 
     all_X = []
     all_Y = []
@@ -54,8 +40,18 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, history_length, unroll_leng
             csv_file_path = os.path.join(data_path + folder_name, file)
             data = pd.read_csv(csv_file_path)
 
-            velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
-            data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
+            velocity_data, attitude_data, angular_velocity_data, airspeed, wind, differential_pressure, control_data = extract_data(data, dataset)
+
+            if augment_input == 'va':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, airspeed.reshape(-1, 1), control_data))
+            elif augment_input == 'w':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, wind, control_data))
+            elif augment_input == 'P':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, differential_pressure.reshape(-1, 1), control_data))
+            elif augment_input == 'vawP':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, airspeed.reshape(-1, 1), wind, differential_pressure.reshape(-1, 1), control_data))
+                
+            # data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
 
             num_samples = data_np.shape[0] - history_length - unroll_length
             if num_samples <= 0:
@@ -94,7 +90,7 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, history_length, unroll_leng
         
     return X, Y
 
-def hdf5_trajectories(data_path, folder_name, dataset, history_length, unroll_length):
+def hdf5_trajectories(data_path, folder_name, dataset, history_length, unroll_length, augment_input):
 
     # load the data
     for file in tqdm(os.listdir(data_path + folder_name)):
@@ -102,9 +98,17 @@ def hdf5_trajectories(data_path, folder_name, dataset, history_length, unroll_le
             csv_file_path = os.path.join(data_path + folder_name, file)
             data = pd.read_csv(csv_file_path)
 
-            velocity_data, attitude_data, angular_velocity_data, control_data = extract_data(data, dataset)
+            velocity_data, attitude_data, angular_velocity_data, airspeed, wind, differential_pressure, control_data = extract_data(data, dataset)
 
-            data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
+            if augment_input == 'va':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, airspeed.reshape(-1, 1), control_data))
+            elif augment_input == 'w':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, wind, control_data))
+            elif augment_input == 'P':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, differential_pressure.reshape(-1, 1), control_data))
+            elif augment_input == 'vawP':
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, airspeed.reshape(-1, 1), wind, differential_pressure.reshape(-1, 1), control_data))
+                
             num_samples = data_np.shape[0] - history_length - unroll_length
             if num_samples <= 0:
                 print(f"Skipping file {file} due to insufficient data")
