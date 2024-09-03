@@ -50,9 +50,9 @@ def hdf5(data_path, folder_name, hdf5_file, dataset, history_length, unroll_leng
                 data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, differential_pressure.reshape(-1, 1), control_data))
             elif augment_input == 'vawP':
                 data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, airspeed.reshape(-1, 1), wind, differential_pressure.reshape(-1, 1), control_data))
+            else:
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
                 
-            # data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
-
             num_samples = data_np.shape[0] - history_length - unroll_length
             if num_samples <= 0:
                 print(f"Skipping file {file} due to insufficient data")
@@ -108,6 +108,8 @@ def hdf5_trajectories(data_path, folder_name, dataset, history_length, unroll_le
                 data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, differential_pressure.reshape(-1, 1), control_data))
             elif augment_input == 'vawP':
                 data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, airspeed.reshape(-1, 1), wind, differential_pressure.reshape(-1, 1), control_data))
+            else:
+                data_np = np.hstack((velocity_data, attitude_data, angular_velocity_data, control_data))
                 
             num_samples = data_np.shape[0] - history_length - unroll_length
             if num_samples <= 0:

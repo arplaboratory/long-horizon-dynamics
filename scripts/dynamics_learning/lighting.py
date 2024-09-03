@@ -115,7 +115,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         wind_gt = y[:, i, 11:13]
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
-
+                    else:
+                        x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
                     # Update x_curr
                     # x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
 
@@ -137,6 +138,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         wind_gt = y[:, i, 11:13]
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
+                    else:
+                        x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
 
                     # x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
                 
@@ -200,6 +203,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         wind_gt = y[:, i, 11:13]
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
+                    else:
+                        x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
 
                 elif self.args.predictor_type == "attitude":
                     linear_velocity_gt = y[:, i, :3]
@@ -219,6 +224,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         wind_gt = y[:, i, 11:13]
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
+                    else:
+                        x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
                 
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
 

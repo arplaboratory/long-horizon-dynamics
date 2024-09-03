@@ -11,6 +11,7 @@ from utils.ulog_tools import load_ulog, pandas_from_topic
 from utils.dataframe_tools import compute_flight_time, resample_dataframe_list
 from utils.quat_utils import quaternion_to_rotation_matrix
 from progress.bar import Bar
+from matplotlib.backends.backend_pdf import PdfPages
 import vpselector 
 
 plt.rcParams["figure.figsize"] = (20, 16)
@@ -253,76 +254,144 @@ class DataPreprocessing(object):
         angular_velocity_headers = ["ang_vel_x", "ang_vel_y", "ang_vel_z"]
         quaternion_headers = ["q0", "q1", "q2", "q3"]
         control_headers = ["throttle", "aileron", "elevator", "rudder"]
+        wind_speed_headers = ["wind_north", "wind_east"]
+        airspeed_headers = ["airspeed"]
+        diff_pressure_headers = ["diff_pressure"]
 
 
         # plot each of the dataframes separately and save the plots as a pdf
 
         # Convert timestamp to seconds and start from 0
-        self.data_df["timestamp"] = (self.data_df["timestamp"] - self.data_df["timestamp"].iloc[0]) / 1e6
+        self.data_df["t"] = (self.data_df["t"] - self.data_df["t"].iloc[0]) / 1e6
 
         # Local velocity
         fig, axs = plt.subplots(3, 1, figsize=(20, 16)) 
         for i in range(3):
-            axs[i].plot(self.data_df["timestamp"], self.data_df[velocity_headers[i]], color=colors[i])
+            axs[i].plot(self.data_df["t"], self.data_df[velocity_headers[i]], color=colors[i])
             axs[i].set_ylabel(velocity_headers[i])
             axs[i].set_xlabel("Time [s]")
             axs[i].grid(alpha=0.3)
         axs[0].set_title("Local Velocity")
         
-        # Save plots in assets folder
-        assets_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../assets")
-        plt.savefig(os.path.join(assets_path, "local_velocity.pdf"))
-        plt.tight_layout()
+        # create a folder called plots in the dataset directory
+        plots_path = os.path.join(os.path.dirname(os.path.abspath(self.rel_data_path)), "plots")
 
+        print("Saving plots to: ", plots_path)
+        if not os.path.exists(plots_path):
+            os.makedirs(plots_path)
+        # save all the plots as multiple pages in a single pdf
 
-        # Body acceleration
+        # Creating plot file name using the name of the ulog file
+        plot_file_name = os.path.basename(self.rel_data_path).split(".")[0] + "_plots.pdf"
+        plot_file_path = os.path.join(plots_path, plot_file_name)
+        pdf = PdfPages(plot_file_path)
+
+        # Convert timestamp to seconds and start from 0
+        self.data_df["t"] = (self.data_df["t"] - self.data_df["t"].iloc[0]) / 1e6
+
+        # Local velocity
         fig, axs = plt.subplots(3, 1, figsize=(20, 16))
         for i in range(3):
-            axs[i].plot(self.data_df["timestamp"], self.data_df[acceleration_headers[i]], color=colors[i])
+            axs[i].plot(self.data_df["t"], self.data_df[velocity_headers[i]], color=colors[i])
+            axs[i].set_ylabel(velocity_headers[i])
+            axs[i].set_xlabel("Time [s]")
+            axs[i].grid(alpha=0.3)
+
+        axs[0].set_title("Local Velocity")
+        plt.tight_layout()
+        pdf.savefig(fig)
+
+        # Local acceleration
+        fig, axs = plt.subplots(3, 1, figsize=(20, 16))
+        for i in range(3):
+            axs[i].plot(self.data_df["t"], self.data_df[acceleration_headers[i]], color=colors[i])
             axs[i].set_ylabel(acceleration_headers[i])
             axs[i].set_xlabel("Time [s]")
             axs[i].grid(alpha=0.3)
 
-        axs[0].set_title("Body Acceleration")
-        plt.savefig(os.path.join(assets_path, "body_acceleration.pdf"))
+        axs[0].set_title("Local Acceleration")
         plt.tight_layout()
 
-        # Body angular velocity
+        pdf.savefig(fig)
+
+        # Angular velocity
         fig, axs = plt.subplots(3, 1, figsize=(20, 16))
         for i in range(3):
-            axs[i].plot(self.data_df["timestamp"], self.data_df[angular_velocity_headers[i]], color=colors[i])
+            axs[i].plot(self.data_df["t"], self.data_df[angular_velocity_headers[i]], color=colors[i])
             axs[i].set_ylabel(angular_velocity_headers[i])
             axs[i].set_xlabel("Time [s]")
             axs[i].grid(alpha=0.3)
 
-        axs[0].set_title("Body Angular Velocity")
-        plt.savefig(os.path.join(assets_path, "body_angular_velocity.pdf"))
+        axs[0].set_title("Angular Velocity")
         plt.tight_layout()
+
+        pdf.savefig(fig)
 
         # Quaternion
         fig, axs = plt.subplots(4, 1, figsize=(20, 16))
         for i in range(4):
-            axs[i].plot(self.data_df["timestamp"], self.data_df[quaternion_headers[i]], color=colors[i])
+            axs[i].plot(self.data_df["t"], self.data_df[quaternion_headers[i]], color=colors[i])
             axs[i].set_ylabel(quaternion_headers[i])
             axs[i].set_xlabel("Time [s]")
             axs[i].grid(alpha=0.3)
 
         axs[0].set_title("Quaternion")
-        plt.savefig(os.path.join(assets_path, "quaternion.pdf"))
         plt.tight_layout()
 
-        # Control inputs
+        pdf.savefig(fig)
+
+        # Control
         fig, axs = plt.subplots(4, 1, figsize=(20, 16))
         for i in range(4):
-            axs[i].plot(self.data_df["timestamp"], self.data_df[control_headers[i]], color=colors[i])
+            axs[i].plot(self.data_df["t"], self.data_df[control_headers[i]], color=colors[i])
             axs[i].set_ylabel(control_headers[i])
             axs[i].set_xlabel("Time [s]")
             axs[i].grid(alpha=0.3)
 
-        axs[0].set_title("Control Inputs")
-        plt.savefig(os.path.join(assets_path, "control_inputs.pdf"))
+        axs[0].set_title("Control")
         plt.tight_layout()
 
+        pdf.savefig(fig)
+
+        # wind speed
+        fig, axs = plt.subplots(2, 1, figsize=(20, 16))
+        for i in range(2):
+            axs[i].plot(self.data_df["t"], self.data_df[wind_speed_headers[i]], color=colors[i])
+            axs[i].set_ylabel(wind_speed_headers[i])
+            axs[i].set_xlabel("Time [s]")
+            axs[i].grid(alpha=0.3)
+
+        axs[0].set_title("Wind Speed")
+        plt.tight_layout()
+
+        pdf.savefig(fig)
+
+        # airspeed
+        fig, axs = plt.subplots(1, 1, figsize=(20, 16))
+        axs.plot(self.data_df["t"], self.data_df[airspeed_headers[0]], color=colors[0])
+        axs.set_ylabel(airspeed_headers[0])
+        axs.set_xlabel("Time [s]")
+        axs.grid(alpha=0.3)
+
+        axs.set_title("Airspeed")
+        plt.tight_layout()
+
+        pdf.savefig(fig)
+
+        # diff pressure
+        fig, axs = plt.subplots(1, 1, figsize=(20, 16))
+        axs.plot(self.data_df["t"], self.data_df[diff_pressure_headers[0]], color=colors[0])
+        axs.set_ylabel(diff_pressure_headers[0])
+        axs.set_xlabel("Time [s]")
+        axs.grid(alpha=0.3)
+
+        axs.set_title("Diff Pressure")
+        plt.tight_layout()
+
+        pdf.savefig(fig)
+        pdf.close()    
+
+        
     def select_data(self, save_path):
         
         # Interactive data selection using vpselector

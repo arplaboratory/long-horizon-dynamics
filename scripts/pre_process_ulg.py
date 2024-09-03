@@ -30,6 +30,4 @@ for ulog_file in ulog_files:
     data_df = data_preprocessor.get_dataframes()
     save_csv_path = os.path.join(save_csv_dir, ulog_file.split('.')[0] + '.csv')
     data_preprocessor.select_data(save_csv_path)
-
-
-
+    data_preprocessor.visualize_data()
