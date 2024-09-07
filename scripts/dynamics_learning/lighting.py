@@ -9,6 +9,22 @@ from .registry import get_model
 
 warnings.filterwarnings("ignore")
 
+import matplotlib.pyplot as plt
+plt.rcParams["figure.figsize"] = (12,8)
+
+plt.rcParams.update({
+    "text.usetex": False,
+    "font.family": "serif",
+    "font.serif": ["Times New Roman"],  # Choose your serif font here
+    "font.size": 28,
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42
+})
+
+colors = ["#7d7376","#365282","#e84c53","#edb120"]
+markers = ['o', 's', '^', 'D', 'v', 'p']
+line_styles = ['-', '--', '-.', ':', '-', '--']
+
 class DynamicsLearning(pytorch_lightning.LightningModule):
     def __init__(self, args, resources_path, experiment_path, 
                  input_size, output_size, max_iterations):
@@ -39,6 +55,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.verbose = False
 
         self.validation_step_outputs = []
+        self.compounding_error = []
 
     def forward(self, x, init_memory):
 
@@ -230,8 +247,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
 
         return batch_loss, compounding_error
-            
-    
+                
     def quaternion_product(self, delta_q, q):
         """
         Multiply delta quaternion to the previous quaternion.
@@ -265,13 +281,36 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
     
     def test_step(self, test_batch, batch_idx, dataloader_idx=0):
         
-        batch_loss, _ = self.eval_trajectory(test_batch)
+        batch_loss, compounding_error = self.eval_trajectory(test_batch)
+        self.compounding_error.append(compounding_error)
         if self.args.predictor_type == "velocity":
             self.log("Velocity Error", batch_loss, on_step=True, prog_bar=True, logger=True)
         elif self.args.predictor_type == "attitude":
             self.log("Quaternion Error", batch_loss, on_step=True, prog_bar=True, logger=True)
 
         return batch_loss
+    
+    def plot_compounding_error(self):
+        
+        # plot the compounding error OVER UNROLL LENGTH
+        mean_copounding_error_per_sample = np.mean(self.compounding_error, axis=0)
+        var_copounding_error_per_sample = np.var(self.compounding_error, axis=0)
+        
+        x = np.arange(1, self.args.unroll_length + 1)
+        fig, ax = plt.subplots(dpi=100)
+        ax.plot(x, mean_copounding_error_per_sample, label="Compounding Error", color='skyblue', marker=markers[0], linestyle=line_styles[0], linewidth=2.5)
+        ax.fill_between(x, mean_copounding_error_per_sample - var_copounding_error_per_sample, 
+                        mean_copounding_error_per_sample + var_copounding_error_per_sample, 
+                        alpha=0.5, color='skyblue')
+        ax.set_xlabel("Unroll Length")
+        ax.set_ylabel("MSE")
+        ax.set_title("Compounding Error Over Unroll Length")
+        # Legend bottom right
+        
+        plt.tight_layout(pad=1.5)
+        plt.savefig(self.experiment_path + "plots/compounding_error.png")
+        plt.close(fig)
+        
             
     def on_train_epoch_start(self):
         pass
@@ -295,4 +334,15 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             self.log("best_valid_loss", self.best_valid_loss, on_epoch=True, prog_bar=True, logger=True)
         self.validation_step_outputs.clear()  # free memory
 
+    def on_test_epoch_start(self):
+        pass
+
+    def on_test_epoch_end(self):
+        
+        # get average compounding error over all trajectories and plot the compounding error
+        # compounding_error = np.mean(self.compounding_error, axis=0)
+        self.plot_compounding_error()
+
+        # self.compounding_error.clear()  # free memory
+        torch.cuda.empty_cache()
         
