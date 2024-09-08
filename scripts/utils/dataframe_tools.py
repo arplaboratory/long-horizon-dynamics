@@ -3,6 +3,8 @@ import pandas as pd
 from utils.ulog_tools import pandas_from_topic
 from utils.quat_utils import slerp
 from matplotlib import pyplot as plt
+from scipy.interpolate import CubicSpline
+from scipy.signal import butter, filtfilt
 
 
 def compute_flight_time(data_df):
@@ -62,16 +64,76 @@ def compute_flight_time(data_df):
     return [{"t_start": act_df.iloc[0, 0], "t_end": act_df.iloc[-1, 0]}]
 
 
+
+def butter_lowpass(cutoff, fs, order=5):
+    """
+    Design a Butterworth low-pass filter.
+    
+    Inputs:
+    - cutoff: The cutoff frequency of the filter (Hz)
+    - fs: The sampling frequency of the data (Hz)
+    - order: The order of the filter (higher values provide a steeper roll-off)
+    
+    Returns:
+    - b, a: Numerator and denominator polynomials of the IIR filter.
+    """
+    nyquist = 0.5 * fs  # Nyquist frequency
+    normal_cutoff = cutoff / nyquist  # Normalized cutoff frequency
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
+
+def applyButterLowpassFilter(data, cutoff, fs, order=5):
+    """
+    Apply a Butterworth low-pass filter to the data.
+    
+    Inputs:
+    - data: The input signal (1D array)
+    - cutoff: The cutoff frequency (Hz)
+    - fs: The sampling frequency (Hz)
+    - order: The order of the filter (default is 5)
+    
+    Returns:
+    - The filtered signal (1D array)
+    """
+    b, a = butter_lowpass(cutoff, fs, order=order)
+    y = filtfilt(b, a, data)  # Apply filter using filtfilt for zero-phase distortion
+    return y
+
+
 def moving_average(x, w=7):
     return np.convolve(x, np.ones(w), "valid") / w
 
 
-def filter_df(data_df, w=11):
+# def filter_df(data_df, w=11):
+#     data_np = data_df.to_numpy()
+#     column_list = data_df.columns
+#     new_df = pd.DataFrame()
+#     for i in range(data_np.shape[1]):
+#         new_df[column_list[i]] = moving_average(data_np[:, i])
+#     return new_df
+
+def filter_df(data_df, cutoff=5, fs=100, order=4):
+    """
+    Apply a Butterworth low-pass filter to each column of a DataFrame.
+    
+    Inputs:
+    - data_df: Input pandas DataFrame with columns to be filtered.
+    - cutoff: The cutoff frequency (Hz)
+    - fs: The sampling frequency (Hz)
+    - order: The order of the filter (default is 5)
+    
+    Returns:
+    - A new DataFrame with filtered data.
+    """
     data_np = data_df.to_numpy()
     column_list = data_df.columns
     new_df = pd.DataFrame()
+
     for i in range(data_np.shape[1]):
-        new_df[column_list[i]] = moving_average(data_np[:, i])
+        # Apply the Butterworth low-pass filter to each column of the DataFrame
+        filtered_column = applyButterLowpassFilter(data_np[:, i], cutoff, fs, order)
+        new_df[column_list[i]] = filtered_column
+
     return new_df
 
 
@@ -125,7 +187,11 @@ def resample_dataframe_list(
         else:
             new_df = pd.DataFrame()
             for col in df:
-                new_df[col] = np.interp(new_t_list, df.timestamp, df[col])
+                # new_df[col] = np.interp(new_t_list, df.timestamp, df[col])
+
+                # use cubic spline interpolation
+                cs = CubicSpline(df["timestamp"], df[col])
+                new_df[col] = cs(new_t_list)
 
         res_df = pd.concat([res_df, new_df], axis=1)
         res_df = res_df.loc[:, ~res_df.columns.duplicated()]

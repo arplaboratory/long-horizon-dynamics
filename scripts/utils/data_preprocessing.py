@@ -33,7 +33,7 @@ class DataPreprocessing(object):
         "sub_plt2_data": ["throttle", "aileron", "elevator", "rudder"],
         "sub_plt3_data": ["vx", "vy", "vz"],
         "sub_plt4_data": ["ang_vel_x", "ang_vel_y", "ang_vel_z"],
-        "sub_plt4_data": ["x", "y", "z"],
+        # "sub_plt4_data": ["x", "y", "z"],
     }
 
     def __init__(self, config_file, selection_var="none"):
@@ -179,6 +179,7 @@ class DataPreprocessing(object):
                 id = topic_dict["id"]
                 curr_df = pandas_from_topic(ulog, [topic_type], id)
             else:
+
                 curr_df = pandas_from_topic(ulog, [topic_type])
 
             curr_df = curr_df[topic_dict["ulog_name"]]
