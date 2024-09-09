@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
     model_name = args.model_type + "_" + str(args.history_length) + "_" + args.dataset + "_" + str(args.unroll_length) 
 
-    args.unroll_length = 10
+    args.unroll_length = 25
     
     # device
     args.device = "cuda:0"

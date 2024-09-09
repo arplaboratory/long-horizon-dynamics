@@ -82,7 +82,7 @@ def butter_lowpass(cutoff, fs, order=5):
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
     return b, a
 
-def applyButterLowpassFilter(data, cutoff, fs, order=5):
+def applyButterLowpassFilter(data, cutoff, fs, order):
     """
     Apply a Butterworth low-pass filter to the data.
     

@@ -10,6 +10,7 @@ from .registry import get_model
 warnings.filterwarnings("ignore")
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 plt.rcParams["figure.figsize"] = (12,8)
 
 plt.rcParams.update({
@@ -56,6 +57,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         self.validation_step_outputs = []
         self.compounding_error = []
+        self.plot_error = []
 
     def forward(self, x, init_memory):
 
@@ -176,7 +178,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         batch_loss = 0.0
 
         compounding_error = []
-        abs_error = {}
+        trajectory_error_avg_unroll = []
 
         for i in range(self.args.unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
@@ -185,8 +187,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 linear_velocity_gt =  y[:, i, :3]
                 angular_velocity_gt = y[:, i, 7:10]
                 velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
-                abs_error[i+1] = torch.mean(torch.abs(y_hat - velocity_gt), dim=0)
+                # abs_error[i+1] = torch.mean(torch.abs(y_hat - velocity_gt), dim=0)
                 loss = self.loss_fn(y_hat, velocity_gt)
+
+                # plot loss for each sample. Compute average loss for each sample over unroll length. 
+                trajectory_error_avg_unroll.append(self.loss_fn(y_hat, velocity_gt, mean=False).detach().cpu().numpy().reshape(-1, 1))
+
             elif self.args.predictor_type == "attitude":
                 y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)
                 attitude_gt = y[:, i, 3:7]
@@ -246,6 +252,11 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
 
+        # Take the average of the trajectory error over the unroll length. trajectory_error_avg_unroll is a list of batch loss for each unroll length
+        trajectory_error_avg_unroll = np.mean(trajectory_error_avg_unroll, axis=0)
+
+        self.plot_error.append(trajectory_error_avg_unroll)
+
         return batch_loss, compounding_error
                 
     def quaternion_product(self, delta_q, q):
@@ -298,7 +309,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         
         x = np.arange(1, self.args.unroll_length + 1)
         fig, ax = plt.subplots(dpi=100)
-        ax.plot(x, mean_copounding_error_per_sample, label="Compounding Error", color='skyblue', marker=markers[0], linestyle=line_styles[0], linewidth=2.5)
+        ax.plot(x, mean_copounding_error_per_sample, label="Compounding Error", color='skyblue')
         ax.fill_between(x, mean_copounding_error_per_sample - var_copounding_error_per_sample, 
                         mean_copounding_error_per_sample + var_copounding_error_per_sample, 
                         alpha=0.5, color='skyblue')
@@ -310,7 +321,35 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         plt.tight_layout(pad=1.5)
         plt.savefig(self.experiment_path + "plots/compounding_error.png")
         plt.close(fig)
-        
+
+    def plot_trajectory_error(self):
+            
+            # plot the error for each sample in the trajectory. All the sample error is stored in self.plot_error as a list of batch loss
+            # Iterate the list and plot the error for each sample
+
+            # Compute the total number of samples. It is the sum of the batch size of all the trajectories 
+            total_samples = sum([len(error) for error in self.plot_error])
+
+            mse_per_sample = np.concatenate(self.plot_error, axis=0)
+
+            # Plot the error for each sample. MSE vs Sample
+            fig, ax = plt.subplots(dpi=100)
+            ax.plot(np.arange(1, total_samples + 1), mse_per_sample, label="MSE", color='skyblue', linestyle=line_styles[0], linewidth=1.5)
+            ax.set_xlabel("Sample")
+            ax.set_ylabel("MSE")
+            ax.set_title("MSE for each sample in the trajectory")
+            
+            # Draw horizontal line at y=1.0
+            ax.axhline(y=1.0, color='r', linestyle='--', label='Threshold')
+
+            # Legend bottom right
+            plt.tight_layout(pad=1.5)
+            plt.grid(alpha=0.3)
+            plt.savefig(self.experiment_path + "plots/trajectory_error.png")
+            plt.close(fig)
+
+            
+            
             
     def on_train_epoch_start(self):
         pass
@@ -342,6 +381,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         # get average compounding error over all trajectories and plot the compounding error
         # compounding_error = np.mean(self.compounding_error, axis=0)
         self.plot_compounding_error()
+        self.plot_trajectory_error()
 
         # self.compounding_error.clear()  # free memory
         torch.cuda.empty_cache()

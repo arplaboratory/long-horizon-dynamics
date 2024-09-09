@@ -31,9 +31,11 @@ class DataPreprocessing(object):
         "x_axis_col": "timestamp",
         "sub_plt1_data": ["q0", "q1", "q2", "q3"],
         "sub_plt2_data": ["throttle", "aileron", "elevator", "rudder"],
-        "sub_plt3_data": ["vx", "vy", "vz"],
+        # "sub_plt3_data": ["vx", "vy", "vz"],
         "sub_plt4_data": ["ang_vel_x", "ang_vel_y", "ang_vel_z"],
-        # "sub_plt4_data": ["x", "y", "z"],
+        # plot wind speed
+        "sub_plt5_data": ["wind_north", "wind_east"],
+        # "sub_plt6_data": ["x", "y", "z"],
     }
 
     def __init__(self, config_file, selection_var="none"):
@@ -219,7 +221,7 @@ class DataPreprocessing(object):
             resampled_df = []
             for ft in fts:
                 new_resampled_df = resample_dataframe_list(
-                    df_list, ft, self.resample_freq
+                    df_list, ft, self.resample_freq, slerp_enabled=True
                 )
                 resampled_df.append(new_resampled_df)
             resampled_df = pd.concat(resampled_df, ignore_index=True)
@@ -274,13 +276,15 @@ class DataPreprocessing(object):
 
         # Convert timestamp to seconds and start from 0
         self.data_df["t"] = (self.data_df["t"] - self.data_df["t"].iloc[0]) / 1e6
+        num_samples = self.data_df.shape[0]
 
+        x_samples = np.arange(num_samples)
         # Local velocity
         fig, axs = plt.subplots(3, 1, figsize=(20, 16)) 
         for i in range(3):
-            axs[i].plot(self.data_df["t"], self.data_df[velocity_headers[i]], color=colors[i])
+            axs[i].plot(x_samples, self.data_df[velocity_headers[i]], color=colors[i])
             axs[i].set_ylabel(velocity_headers[i])
-            axs[i].set_xlabel("Time [s]")
+            axs[i].set_xlabel("Samples")
             axs[i].grid(alpha=0.3)
         axs[0].set_title("Local Velocity")
         
@@ -316,9 +320,9 @@ class DataPreprocessing(object):
         # Local velocity
         fig, axs = plt.subplots(3, 1, figsize=(20, 16))
         for i in range(3):
-            axs[i].plot(self.data_df["t"], self.data_df[velocity_headers[i]], color=colors[i])
+            axs[i].plot(x_samples, self.data_df[velocity_headers[i]], color=colors[i])
             axs[i].set_ylabel(velocity_labels[i])
-            axs[i].set_xlabel("Time [s]")
+            axs[i].set_xlabel("Samples")
             axs[i].grid(alpha=0.3)
 
         axs[0].set_title("Local Velocity")
@@ -328,9 +332,9 @@ class DataPreprocessing(object):
         # Local acceleration
         fig, axs = plt.subplots(3, 1, figsize=(20, 16))
         for i in range(3):
-            axs[i].plot(self.data_df["t"], self.data_df[acceleration_headers[i]], color=colors[i])
+            axs[i].plot(x_samples, self.data_df[acceleration_headers[i]], color=colors[i])
             axs[i].set_ylabel(acceleration_labels[i])
-            axs[i].set_xlabel("Time [s]")
+            axs[i].set_xlabel("Samples")
             axs[i].grid(alpha=0.3)
 
         axs[0].set_title("Local Acceleration")
@@ -341,9 +345,9 @@ class DataPreprocessing(object):
         # Angular velocity
         fig, axs = plt.subplots(3, 1, figsize=(20, 16))
         for i in range(3):
-            axs[i].plot(self.data_df["t"], self.data_df[angular_velocity_headers[i]], color=colors[i])
+            axs[i].plot(x_samples, self.data_df[angular_velocity_headers[i]], color=colors[i])
             axs[i].set_ylabel(angular_velocity_labels[i])
-            axs[i].set_xlabel("Time [s]")
+            axs[i].set_xlabel("Samples")
             axs[i].grid(alpha=0.3)
 
         axs[0].set_title("Angular Velocity")
@@ -354,9 +358,9 @@ class DataPreprocessing(object):
         # Quaternion
         fig, axs = plt.subplots(4, 1, figsize=(20, 16))
         for i in range(4):
-            axs[i].plot(self.data_df["t"], self.data_df[quaternion_headers[i]], color=colors[i])
+            axs[i].plot(x_samples, self.data_df[quaternion_headers[i]], color=colors[i])
             axs[i].set_ylabel(quaternion_labels[i])
-            axs[i].set_xlabel("Time [s]")
+            axs[i].set_xlabel("Samples")
             axs[i].grid(alpha=0.3)
 
         axs[0].set_title("Quaternion")
@@ -367,9 +371,9 @@ class DataPreprocessing(object):
         # Control
         fig, axs = plt.subplots(4, 1, figsize=(20, 16))
         for i in range(4):
-            axs[i].plot(self.data_df["t"], self.data_df[control_headers[i]], color=colors[i])
+            axs[i].plot(x_samples, self.data_df[control_headers[i]], color=colors[i])
             axs[i].set_ylabel(control_labels[i])
-            axs[i].set_xlabel("Time [s]")
+            axs[i].set_xlabel("Samples")
             axs[i].grid(alpha=0.3)
 
         axs[0].set_title("Control")
@@ -380,9 +384,9 @@ class DataPreprocessing(object):
         # wind speed
         fig, axs = plt.subplots(2, 1, figsize=(20, 16))
         for i in range(2):
-            axs[i].plot(self.data_df["t"], self.data_df[wind_speed_headers[i]], color=colors[i])
+            axs[i].plot(x_samples, self.data_df[wind_speed_headers[i]], color=colors[i])
             axs[i].set_ylabel(wind_speed_labels[i])
-            axs[i].set_xlabel("Time [s]")
+            axs[i].set_xlabel("Samples")
             axs[i].grid(alpha=0.3)
 
         axs[0].set_title("Wind Speed")
@@ -392,9 +396,9 @@ class DataPreprocessing(object):
 
         # airspeed
         fig, axs = plt.subplots(1, 1, figsize=(20, 16))
-        axs.plot(self.data_df["t"], self.data_df[airspeed_headers[0]], color=colors[0])
+        axs.plot(x_samples, self.data_df[airspeed_headers[0]], color=colors[0])
         axs.set_ylabel(airspeed_labels[0])
-        axs.set_xlabel("Time [s]")
+        axs.set_xlabel("Samples")
         axs.grid(alpha=0.3)
 
         axs.set_title("Airspeed")
@@ -404,9 +408,9 @@ class DataPreprocessing(object):
 
         # diff pressure
         fig, axs = plt.subplots(1, 1, figsize=(20, 16))
-        axs.plot(self.data_df["t"], self.data_df[diff_pressure_headers[0]], color=colors[0])
+        axs.plot(x_samples, self.data_df[diff_pressure_headers[0]], color=colors[0])
         axs.set_ylabel(diff_pressure_labels[0])
-        axs.set_xlabel("Time [s]")
+        axs.set_xlabel("Samples")
         axs.grid(alpha=0.3)
 
         axs.set_title("Diff Pressure")
@@ -425,7 +429,8 @@ class DataPreprocessing(object):
         selected_df.to_csv(save_path, index=False)
 
         self.data_df.rename(columns={"timestamp": "t"}, inplace=True)
-        self.data_df.to_csv(save_path, index=False)
+        self.data_df = selected_df
+        # self.data_df.to_csv(save_path, index=False)
     
         # plot x, y
         # fig, axs = plt.subplots(1, 1, figsize=(20, 16)) 
