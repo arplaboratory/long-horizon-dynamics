@@ -372,7 +372,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
     def on_train_epoch_end(self):
         self.verbose = False
 
-        if (trainer.current_epoch + 1) % self.tau_divergence_increment_freq == 0:
+        if (self.current_epoch + 1) % self.tau_divergence_increment_freq == 0:
             self.initial_tau_divergence += self.tau_divergence_increment
             if self.initial_tau_divergence > self.max_tau_divergence:
                 self.initial_tau_divergence = self.max_tau_divergence   
