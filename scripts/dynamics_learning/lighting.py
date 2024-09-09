@@ -59,6 +59,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.compounding_error = []
         self.plot_error = []
 
+        # Curriculum learning
+        self.initial_tau_divergence = args.initial_tau_divergence
+        self.tau_divergence_increment = args.tau_divergence_increment
+        self.max_tau_divergence = args.max_tau_divergence
+        self.tau_divergence_increment_freq = args.tau_divergence_increment_freq
+
     def forward(self, x, init_memory):
 
         y_hat = self.model(x, init_memory) 
@@ -135,7 +141,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
                     else:
-                        x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
+                        # Compute the error between the predicted state and the ground truth
+                        error = torch.norm(linear_velocity_pred - linear_velocity_gt, dim=1, keepdim=False) + torch.norm(angular_velocity_pred - angular_velocity_gt, dim=1, keepdim=False)
+                        if torch.any(error > self.initial_tau_divergence):
+                            x_unroll_curr = torch.cat((linear_velocity_gt, attitude_gt, angular_velocity_gt, u_gt), dim=1)
+                        else:
+                            x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
                     # Update x_curr
                     # x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
 
@@ -158,8 +169,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
                     else:
-                        x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
-
+                        # Compute the error between the predicted state and the ground truth
+                        error = torch.norm(y_hat - attitude_gt, dim=1, keepdim=False)
+                        if torch.any(error > self.initial_tau_divergence):
+                            x_unroll_curr = torch.cat((linear_velocity_gt, attitude_gt, angular_velocity_gt, u_gt), dim=1)
+                        else:
+                            x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
                     # x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
                 
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
@@ -356,6 +371,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
     def on_train_epoch_end(self):
         self.verbose = False
+
+        if (trainer.current_epoch + 1) % self.tau_divergence_increment_freq == 0:
+            self.initial_tau_divergence += self.tau_divergence_increment
+            if self.initial_tau_divergence > self.max_tau_divergence:
+                self.initial_tau_divergence = self.max_tau_divergence   
+                
         torch.cuda.empty_cache()
 
     def on_validation_epoch_start(self):
