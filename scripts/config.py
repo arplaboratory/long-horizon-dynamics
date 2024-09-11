@@ -23,6 +23,8 @@ def parse_args():
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('--seed',                  type=int,      default=10)
     parser.add_argument('--predictor_type',        type=str,      default='velocity')
+    parser.add_argument('--energy_loss',           type=bool,     default=True)
+    parser.add_argument('--energy_loss_weight',    type=float,    default=1.0)
 
     # Optimizer
     parser.add_argument('-l', '--learning_rate',   type=float,    default=0.0001)
@@ -48,7 +50,8 @@ def parse_args():
     parser.add_argument('--history_length',        type=int,      default=20)
     parser.add_argument('--delta',                 type=bool,     default=True)
     parser.add_argument('--dataset',               type=str,      default='arpl_fixed_wing')         # pi_tcn, neurobem, fixed_wing, arpl_fixed_wing
-    parser.add_argument('--augment_input',         type=str,      default='vawP') # va, w, P, vawP
+    parser.add_argument('--augment_input',         type=str,      default='None') # va, w, P, vawP
+    parser.add_argument('--mass',                  type=float,    default=1.8)
 
     args = parser.parse_args()
     for arg in vars(args):

@@ -59,6 +59,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.compounding_error = []
         self.plot_error = []
 
+        self.mass = args.mass
+        self.energy_loss = args.energy_loss
+        self.energy_loss_weight = args.energy_loss_weight
+
     def forward(self, x, init_memory):
 
         y_hat = self.model(x, init_memory) 
@@ -103,7 +107,17 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 linear_velocity_gt =  y[:, i, :3]
                 angular_velocity_gt = y[:, i, 7:10]
                 velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
-                loss = self.loss_fn(y_hat, velocity_gt)
+
+                # Compute energy loss for the velocity predictor
+
+                if self.energy_loss:
+                    ke_pred = 0.5 * self.mass * torch.norm(y_hat[:, :3], dim=1, keepdim=True) ** 2
+                    ke_gt = 0.5 * self.mass * torch.norm(velocity_gt[:, :3], dim=1, keepdim=True) ** 2
+
+                    energy_loss = torch.relu(ke_pred - ke_gt).mean()
+                    loss = self.loss_fn(y_hat, velocity_gt) + self.energy_loss_weight * energy_loss
+                else:
+                    loss = self.loss_fn(y_hat, velocity_gt)
 
             elif self.args.predictor_type == "attitude":
                 y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)   # Normalize the quaternion
