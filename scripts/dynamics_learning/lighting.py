@@ -60,16 +60,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.plot_error = []
         self.plot_predictions = []
 
-        self.mass = args.mass
-        self.energy_loss = args.energy_loss
-        self.energy_loss_weight = args.energy_loss_weight
-
-
         # Curriculum learning
-        self.initial_tau_divergence = args.initial_tau_divergence
-        self.tau_divergence_increment = args.tau_divergence_increment
-        self.max_tau_divergence = args.max_tau_divergence
-        self.tau_divergence_increment_freq = args.tau_divergence_increment_freq
+        self.initial_unroll_length = args.initial_unroll_length
+        self.max_unroll_length = args.max_unroll_length
+        self.update_unroll_frequency = args.update_unroll_frequency
+        self.current_unroll_length = self.initial_unroll_length
+
 
     def forward(self, x, init_memory):
 
@@ -107,7 +103,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         preds = []
 
         batch_loss = 0.0
-        for i in range(self.args.unroll_length):
+        for i in range(self.current_unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
 
             # If predictor 
@@ -116,16 +112,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 angular_velocity_gt = y[:, i, 7:10]
                 velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
 
-                # Compute energy loss for the velocity predictor
-
-                if self.energy_loss:
-                    ke_pred = 0.5 * self.mass * torch.norm(y_hat[:, :3], dim=1, keepdim=True) ** 2
-                    ke_gt = 0.5 * self.mass * torch.norm(velocity_gt[:, :3], dim=1, keepdim=True) ** 2
-
-                    energy_loss = torch.relu(ke_pred - ke_gt).mean()
-                    loss = self.loss_fn(y_hat, velocity_gt) + self.energy_loss_weight * energy_loss
-                else:
-                    loss = self.loss_fn(y_hat, velocity_gt)
+                
+                loss = self.loss_fn(y_hat, velocity_gt)
 
             elif self.args.predictor_type == "attitude":
                 y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)   # Normalize the quaternion
@@ -157,19 +145,8 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
                     else:
-                        # Compute the error between the predicted state and the ground truth
-                        # error = torch.norm(linear_velocity_pred - linear_velocity_gt, dim=1, keepdim=False) + torch.norm(angular_velocity_pred - angular_velocity_gt, dim=1, keepdim=False)
-                        
-                        # loop over the batch size
-                        for j in range(linear_velocity_pred.shape[0]):
-                            error = torch.norm(linear_velocity_pred[j] - linear_velocity_gt[j], dim=0, keepdim=False) + torch.norm(angular_velocity_pred[j] - angular_velocity_gt[j], dim=0, keepdim=False)
-                            
-                            if error > self.initial_tau_divergence:
-                                linear_velocity_pred[j] = linear_velocity_gt[j]
-                                angular_velocity_pred[j] = angular_velocity_gt[j]
-
                         x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
-                    
+                    # Update x_curr
                     # x_unroll_curr = torch.cat((linear_velocity_pred, attitude_gt, angular_velocity_pred, u_gt), dim=1)
 
                 elif self.args.predictor_type == "attitude":
@@ -191,16 +168,10 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                         diff_pressure_gt = y[:, i, 13].unsqueeze(1)
                         x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, va_gt, wind_gt, diff_pressure_gt, u_gt), dim=1)
                     else:
-                        
-                        # loop over the batch size
-                        for j in range(linear_velocity_gt.shape[0]):
-                            error = torch.norm(y_hat[j] - attitude_gt[j], dim=0, keepdim=False)
-                            
-                            if error > self.initial_tau_divergence:
-                                y_hat[j] = attitude_gt[j]
-
                         x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
-                        
+
+                    # x_unroll_curr = torch.cat((linear_velocity_gt, y_hat, angular_velocity_gt, u_gt), dim=1)
+                
                 x_curr = torch.cat((x_curr[:, 1:, :], x_unroll_curr.unsqueeze(1)), dim=1)
             preds.append(y_hat)
 
@@ -394,16 +365,16 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
             
             
     def on_train_epoch_start(self):
-        pass
+
+        # Update unroll length
+        if self.current_epoch % self.update_unroll_frequency == 0:
+            self.current_unroll_length = min(self.max_unroll_length, self.current_unroll_length + 1)
 
     def on_train_epoch_end(self):
-        self.verbose = False
 
-        if (self.current_epoch + 1) % self.tau_divergence_increment_freq == 0:
-            self.initial_tau_divergence += self.tau_divergence_increment
-            if self.initial_tau_divergence > self.max_tau_divergence:
-                self.initial_tau_divergence = self.max_tau_divergence   
-                
+        print("Current Unroll Length: ", self.current_unroll_length)
+
+        self.verbose = False
         torch.cuda.empty_cache()
 
     def on_validation_epoch_start(self):
