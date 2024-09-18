@@ -58,10 +58,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.validation_step_outputs = []
         self.compounding_error = []
         self.plot_error = []
+        self.plot_predictions = []
 
         self.mass = args.mass
         self.energy_loss = args.energy_loss
         self.energy_loss_weight = args.energy_loss_weight
+
 
     def forward(self, x, init_memory):
 
@@ -193,9 +195,11 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         compounding_error = []
         trajectory_error_avg_unroll = []
+        trajectory_pred = []
 
         for i in range(self.args.unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
+            trajectory_pred.append(y_hat.cpu().detach().numpy())
 
             if self.args.predictor_type == "velocity":
                 linear_velocity_gt =  y[:, i, :3]
@@ -270,6 +274,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         trajectory_error_avg_unroll = np.mean(trajectory_error_avg_unroll, axis=0)
 
         self.plot_error.append(trajectory_error_avg_unroll)
+        self.plot_predictions.append(np.concatenate(trajectory_pred, axis=0).reshape(-1, self.args.unroll_length, self.output_size))
 
         return batch_loss, compounding_error
                 
@@ -394,6 +399,13 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         
         # get average compounding error over all trajectories and plot the compounding error
         # compounding_error = np.mean(self.compounding_error, axis=0)
+
+        # Save predictions as a numpy array
+        # self.predictions must be of shapes (num_samples, unroll_length, output_size)
+        predictions = np.concatenate(self.plot_predictions, axis=0)
+        np.save(self.experiment_path + "plots/predictions.npy", predictions)
+        np.save(self.experiment_path + "plots/trajectory_error.npy", np.concatenate(self.plot_error, axis=0))
+        
         self.plot_compounding_error()
         self.plot_trajectory_error()
 

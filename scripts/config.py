@@ -6,12 +6,12 @@ def parse_args():
 
     # architecture
     parser.add_argument('-N', '--model_type',      type=str,       default='tcn')               # mlp, gru, lstm, tcn
-    parser.add_argument('--encoder_sizes',         type=list,      default='256')
-    parser.add_argument('--decoder_sizes',         type=list,      default='64,64,32')
+    parser.add_argument('--encoder_sizes',         type=list,      default='512')
+    parser.add_argument('--decoder_sizes',         type=list,      default='512,256,256')
     parser.add_argument('--encoder_output',        type=str,       default='output')
-    parser.add_argument('--num_layers',            type=int,       default=2)
-    parser.add_argument('--kernel_size',           type=int,       default=2)
-    parser.add_argument('--dropout',               type=float,     default=0.1)
+    parser.add_argument('--num_layers',            type=int,       default=4)
+    parser.add_argument('--kernel_size',           type=int,       default=3)
+    parser.add_argument('--dropout',               type=float,     default=0.15)
 
     # training
     parser.add_argument('-r', '--run_id',          type=int,      default=1)
@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument('-n', '--num_workers',     type=int,      default=4)
     parser.add_argument('--seed',                  type=int,      default=10)
     parser.add_argument('--predictor_type',        type=str,      default='velocity')
-    parser.add_argument('--energy_loss',           type=bool,     default=True)
+    parser.add_argument('--energy_loss',           type=bool,     default=False)
     parser.add_argument('--energy_loss_weight',    type=float,    default=1.0)
 
     # Optimizer
@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument('--cosine_lr',             type=float,    default=1e-4)
     parser.add_argument('--warmup_steps',          type=int,      default=10000)
     parser.add_argument('--cosine_steps',          type=int,      default=30000)
-    parser.add_argument('--gradient_clip_val',     type=float,    default=1.0)
+    parser.add_argument('--gradient_clip_val',     type=float,    default=0.5)
     parser.add_argument('--weight_decay',          type=float,    default=1e-4)
     parser.add_argument('--adam_beta1',            type=float,    default=0.9)
     parser.add_argument('--adam_beta2',            type=float,    default=0.999)
@@ -47,7 +47,7 @@ def parse_args():
     # Data
     parser.add_argument('--sampling_frequency',    type=int,      default=100)
     parser.add_argument('--unroll_length',         type=int,      default=10)
-    parser.add_argument('--history_length',        type=int,      default=20)
+    parser.add_argument('--history_length',        type=int,      default=40)
     parser.add_argument('--delta',                 type=bool,     default=True)
     parser.add_argument('--dataset',               type=str,      default='arpl_fixed_wing')         # pi_tcn, neurobem, fixed_wing, arpl_fixed_wing
     parser.add_argument('--augment_input',         type=str,      default='None') # va, w, P, vawP
