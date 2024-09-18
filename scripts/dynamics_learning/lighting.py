@@ -58,6 +58,12 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         self.validation_step_outputs = []
         self.compounding_error = []
         self.plot_error = []
+        self.plot_predictions = []
+
+        self.mass = args.mass
+        self.energy_loss = args.energy_loss
+        self.energy_loss_weight = args.energy_loss_weight
+
 
         # Curriculum learning
         self.initial_tau_divergence = args.initial_tau_divergence
@@ -109,7 +115,17 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
                 linear_velocity_gt =  y[:, i, :3]
                 angular_velocity_gt = y[:, i, 7:10]
                 velocity_gt = torch.cat((linear_velocity_gt, angular_velocity_gt), dim=1)
-                loss = self.loss_fn(y_hat, velocity_gt)
+
+                # Compute energy loss for the velocity predictor
+
+                if self.energy_loss:
+                    ke_pred = 0.5 * self.mass * torch.norm(y_hat[:, :3], dim=1, keepdim=True) ** 2
+                    ke_gt = 0.5 * self.mass * torch.norm(velocity_gt[:, :3], dim=1, keepdim=True) ** 2
+
+                    energy_loss = torch.relu(ke_pred - ke_gt).mean()
+                    loss = self.loss_fn(y_hat, velocity_gt) + self.energy_loss_weight * energy_loss
+                else:
+                    loss = self.loss_fn(y_hat, velocity_gt)
 
             elif self.args.predictor_type == "attitude":
                 y_hat = y_hat / torch.norm(y_hat, dim=1, keepdim=True)   # Normalize the quaternion
@@ -202,9 +218,11 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
 
         compounding_error = []
         trajectory_error_avg_unroll = []
+        trajectory_pred = []
 
         for i in range(self.args.unroll_length):
             y_hat = self.forward(x_curr, init_memory=True if i == 0 else False)
+            trajectory_pred.append(y_hat.cpu().detach().numpy())
 
             if self.args.predictor_type == "velocity":
                 linear_velocity_gt =  y[:, i, :3]
@@ -279,6 +297,7 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         trajectory_error_avg_unroll = np.mean(trajectory_error_avg_unroll, axis=0)
 
         self.plot_error.append(trajectory_error_avg_unroll)
+        self.plot_predictions.append(np.concatenate(trajectory_pred, axis=0).reshape(-1, self.args.unroll_length, self.output_size))
 
         return batch_loss, compounding_error
                 
@@ -409,6 +428,13 @@ class DynamicsLearning(pytorch_lightning.LightningModule):
         
         # get average compounding error over all trajectories and plot the compounding error
         # compounding_error = np.mean(self.compounding_error, axis=0)
+
+        # Save predictions as a numpy array
+        # self.predictions must be of shapes (num_samples, unroll_length, output_size)
+        predictions = np.concatenate(self.plot_predictions, axis=0)
+        np.save(self.experiment_path + "plots/predictions.npy", predictions)
+        np.save(self.experiment_path + "plots/trajectory_error.npy", np.concatenate(self.plot_error, axis=0))
+        
         self.plot_compounding_error()
         self.plot_trajectory_error()
 

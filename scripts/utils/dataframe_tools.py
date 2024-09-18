@@ -4,7 +4,7 @@ from utils.ulog_tools import pandas_from_topic
 from utils.quat_utils import slerp
 from matplotlib import pyplot as plt
 from scipy.interpolate import CubicSpline
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, filtfilt, medfilt
 
 
 def compute_flight_time(data_df):
@@ -132,6 +132,10 @@ def filter_df(data_df, cutoff=5, fs=100, order=4):
     for i in range(data_np.shape[1]):
         # Apply the Butterworth low-pass filter to each column of the DataFrame
         filtered_column = applyButterLowpassFilter(data_np[:, i], cutoff, fs, order)
+
+        # Median filter the data to remove outliers
+        filtered_column = medfilt(filtered_column, kernel_size=3)
+
         new_df[column_list[i]] = filtered_column
 
     return new_df

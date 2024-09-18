@@ -34,7 +34,7 @@ class DataPreprocessing(object):
         # "sub_plt3_data": ["vx", "vy", "vz"],
         "sub_plt4_data": ["ang_vel_x", "ang_vel_y", "ang_vel_z"],
         # plot wind speed
-        "sub_plt5_data": ["wind_north", "wind_east"],
+        # "sub_plt5_data": ["wind_north", "wind_east"],
         # "sub_plt6_data": ["x", "y", "z"],
     }
 
@@ -424,6 +424,7 @@ class DataPreprocessing(object):
         
         # Interactive data selection using vpselector
         selected_df = vpselector.select_visual_data(self.data_df, self.visual_dataframe_selector_config_dict)
+
         # # Rename timestamp header to 't'
         selected_df.rename(columns={"timestamp": "t"}, inplace=True)
         selected_df.to_csv(save_path, index=False)
